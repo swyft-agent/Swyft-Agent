@@ -1,9 +1,4 @@
-import { createClient } from "@supabase/supabase-js"
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-
-export const supabaseClient = createClient(supabaseUrl, supabaseAnonKey)
+import { supabase } from "@/lib/supabase"
 
 export interface DashboardStats {
   totalBuildings: number
@@ -41,7 +36,7 @@ export async function getUserCompanyId(): Promise<{
   try {
     const {
       data: { user },
-    } = await supabaseClient.auth.getUser()
+    } = await supabase.auth.getUser()
 
     if (!user?.id || !isValidUUID(user.id)) {
       console.log("No authenticated user found or invalid user ID")
@@ -49,7 +44,7 @@ export async function getUserCompanyId(): Promise<{
     }
 
     // Get user data including company info
-    const { data: userData, error: userError } = await supabaseClient
+    const { data: userData, error: userError } = await supabase
       .from("users")
       .select("company_account_id, role, is_company_owner")
       .eq("id", user.id)
@@ -79,7 +74,7 @@ export async function getUserCompanyId(): Promise<{
     console.error("Error getting user company ID:", error)
     const {
       data: { user },
-    } = await supabaseClient.auth.getUser()
+    } = await supabase.auth.getUser()
     return { companyId: null, userId: user?.id || null, isCompanyUser: false }
   }
 }
@@ -90,7 +85,7 @@ export async function fetchDashboardStats(): Promise<DashboardStats> {
     // Wait for user session to be fully loaded
     const {
       data: { session },
-    } = await supabaseClient.auth.getSession()
+    } = await supabase.auth.getSession()
     if (!session?.user?.id) {
       console.log("No active session found")
       throw new Error("No active session")
@@ -105,11 +100,11 @@ export async function fetchDashboardStats(): Promise<DashboardStats> {
     console.log("Fetching dashboard stats for:", { companyId, userId, isCompanyUser })
 
     // Build queries based on whether user is part of a company or individual
-    const buildingQuery = supabaseClient.from("buildings").select("*")
-    const unitsQuery = supabaseClient.from("vacant_units").select("*")
-    const tenantsQuery = supabaseClient.from("tenants").select("*")
-    const inquiriesQuery = supabaseClient.from("inquiries").select("*")
-    const noticesQuery = supabaseClient.from("notices").select("*")
+    const buildingQuery = supabase.from("buildings").select("*")
+    const unitsQuery = supabase.from("vacant_units").select("*")
+    const tenantsQuery = supabase.from("tenants").select("*")
+    const inquiriesQuery = supabase.from("inquiries").select("*")
+    const noticesQuery = supabase.from("notices").select("*")
 
     if (isCompanyUser && companyId && isValidUUID(companyId)) {
       // Company user - filter by company_account_id
@@ -162,7 +157,7 @@ export async function fetchDashboardStats(): Promise<DashboardStats> {
     try {
       if (isCompanyUser && companyId && isValidUUID(companyId)) {
         // For company users, fetch transactions by company_account_id
-        const { data: transactions, error: transactionError } = await supabaseClient
+        const { data: transactions, error: transactionError } = await supabase
           .from("wallet_transactions")
           .select("id, amount, transaction_type, description, status, created_at")
           .eq("company_account_id", companyId)
@@ -176,7 +171,7 @@ export async function fetchDashboardStats(): Promise<DashboardStats> {
         }
       } else if (userId && isValidUUID(userId)) {
         // For individual users, first get their wallet, then fetch transactions by wallet_id
-        const { data: walletData, error: walletError } = await supabaseClient
+        const { data: walletData, error: walletError } = await supabase
           .from("wallet")
           .select("id")
           .eq("user_id", userId)
@@ -185,7 +180,7 @@ export async function fetchDashboardStats(): Promise<DashboardStats> {
         if (walletError) {
           console.error("Error fetching user wallet:", walletError)
         } else if (walletData?.id) {
-          const { data: transactions, error: transactionError } = await supabaseClient
+          const { data: transactions, error: transactionError } = await supabase
             .from("wallet_transactions")
             .select("id, amount, transaction_type, description, status, created_at")
             .eq("wallet_id", walletData.id)
@@ -257,7 +252,7 @@ export async function fetchVacantUnits() {
       return []
     }
 
-    const query = supabaseClient.from("vacant_units").select("*").order("created_at", { ascending: false })
+    const query = supabase.from("vacant_units").select("*").order("created_at", { ascending: false })
 
     if (isCompanyUser && companyId && isValidUUID(companyId)) {
       query.eq("company_account_id", companyId)
@@ -287,7 +282,7 @@ export async function fetchBuildings() {
       return []
     }
 
-    const query = supabaseClient.from("buildings").select("*").order("created_at", { ascending: false })
+    const query = supabase.from("buildings").select("*").order("created_at", { ascending: false })
 
     if (isCompanyUser && companyId && isValidUUID(companyId)) {
       query.eq("company_account_id", companyId)
@@ -317,7 +312,7 @@ export async function fetchTenants() {
       return []
     }
 
-    const query = supabaseClient.from("tenants").select("*").order("created_at", { ascending: false })
+    const query = supabase.from("tenants").select("*").order("created_at", { ascending: false })
 
     if (isCompanyUser && companyId && isValidUUID(companyId)) {
       query.eq("company_account_id", companyId)
@@ -345,7 +340,7 @@ export async function fetchInquiries() {
       return []
     }
 
-    const query = supabaseClient.from("inquiries").select("*").order("created_at", { ascending: false })
+    const query = supabase.from("inquiries").select("*").order("created_at", { ascending: false })
 
     if (isCompanyUser && companyId && isValidUUID(companyId)) {
       query.eq("company_account_id", companyId)
@@ -377,7 +372,7 @@ export async function fetchNotices() {
       return []
     }
 
-    const query = supabaseClient.from("notices").select("*").order("created_at", { ascending: false })
+    const query = supabase.from("notices").select("*").order("created_at", { ascending: false })
 
     if (isCompanyUser && companyId && isValidUUID(companyId)) {
       query.eq("company_account_id", companyId)
@@ -408,7 +403,7 @@ export async function fetchAds() {
       return []
     }
 
-    const query = supabaseClient.from("ads").select("*").order("created_at", { ascending: false })
+    const query = supabase.from("ads").select("*").order("created_at", { ascending: false })
 
     if (isCompanyUser && companyId && isValidUUID(companyId)) {
       query.eq("company_account_id", companyId)
