@@ -2,55 +2,54 @@
 
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { BarChart3, TrendingUp, Eye, MousePointer, Users, Calendar } from "lucide-react"
+import { Eye, MousePointer, TrendingUp, BarChart3, PieChart } from "lucide-react"
 import { useAuth } from "@/components/auth-provider"
 import { supabase } from "@/lib/supabase"
 
-interface AnalyticsData {
-  total_views: number
-  total_clicks: number
-  total_inquiries: number
-  conversion_rate: number
-  top_performing_units: Array<{
-    id: string
-    title: string
-    views: number
-    clicks: number
-    inquiries: number
-  }>
-  daily_stats: Array<{
-    date: string
-    views: number
-    clicks: number
-    inquiries: number
-  }>
+interface UnitAnalytics {
+  id: string
+  title: string
+  address: string
+  city: string
+  rent_amount: string
+  clicks: number
+  views: number
+  inquiries: number
+  created_at: string
+  status: string
+}
+
+interface ClickData {
+  property_id: string
+  clicks_today: number
+  clicks_week: number
+  clicks_month: number
+  last_clicked: string
 }
 
 export default function AnalyticsPage() {
   const { user } = useAuth()
-  const [analyticsData, setAnalyticsData] = useState<AnalyticsData>({
-    total_views: 0,
-    total_clicks: 0,
-    total_inquiries: 0,
-    conversion_rate: 0,
-    top_performing_units: [],
-    daily_stats: [],
-  })
+  const [units, setUnits] = useState<UnitAnalytics[]>([])
+  const [clickData, setClickData] = useState<ClickData[]>([])
   const [loading, setLoading] = useState(true)
+  const [stats, setStats] = useState({
+    totalViews: 0,
+    totalClicks: 0,
+    totalInquiries: 0,
+    conversionRate: 0,
+  })
   const [timeRange, setTimeRange] = useState("7d")
 
   useEffect(() => {
     if (user?.id) {
-      fetchAnalyticsData()
+      fetchAnalytics()
     }
   }, [user?.id, timeRange])
 
-  const fetchAnalyticsData = async () => {
+  const fetchAnalytics = async () => {
     try {
-      setLoading(true)
-
       const { data: userData, error: userError } = await supabase
         .from("users")
         .select("company_account_id")
@@ -59,97 +58,97 @@ export default function AnalyticsPage() {
 
       if (userError) throw userError
 
-      // Calculate date range
-      const endDate = new Date()
-      const startDate = new Date()
-      switch (timeRange) {
-        case "7d":
-          startDate.setDate(endDate.getDate() - 7)
-          break
-        case "30d":
-          startDate.setDate(endDate.getDate() - 30)
-          break
-        case "90d":
-          startDate.setDate(endDate.getDate() - 90)
-          break
+      // Fetch vacant units with basic analytics
+      const { data: unitsData, error: unitsError } = await supabase
+        .from("vacant_units")
+        .select("id, title, address, city, rent_amount, status, created_at")
+        .eq("company_account_id", userData.company_account_id)
+        .order("created_at", { ascending: false })
+
+      if (unitsError) throw unitsError
+
+      // Fetch click tracking data for each unit
+      const unitIds = unitsData?.map((unit) => unit.id) || []
+
+      if (unitIds.length > 0) {
+        const { data: clicksData, error: clicksError } = await supabase
+          .from("click_tracking")
+          .select("property_id, clicked_at, click_source")
+          .in("property_id", unitIds)
+          .eq("company_account_id", userData.company_account_id)
+          .order("clicked_at", { ascending: false })
+
+        if (clicksError) throw clicksError
+
+        // Process click data
+        const now = new Date()
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+        const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000)
+        const monthAgo = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000)
+
+        const processedClickData = unitIds.map((unitId) => {
+          const unitClicks = clicksData?.filter((click) => click.property_id === unitId) || []
+
+          return {
+            property_id: unitId,
+            clicks_today: unitClicks.filter((click) => new Date(click.clicked_at) >= today).length,
+            clicks_week: unitClicks.filter((click) => new Date(click.clicked_at) >= weekAgo).length,
+            clicks_month: unitClicks.filter((click) => new Date(click.clicked_at) >= monthAgo).length,
+            last_clicked: unitClicks[0]?.clicked_at || "",
+          }
+        })
+
+        setClickData(processedClickData)
+
+        // Combine units with click data
+        const unitsWithAnalytics =
+          unitsData?.map((unit) => {
+            const unitClickData = processedClickData.find((data) => data.property_id === unit.id)
+            return {
+              ...unit,
+              clicks: unitClickData?.clicks_month || 0,
+              views: unitClickData?.clicks_month || 0, // For now, treating clicks as views
+              inquiries: 0, // TODO: Add inquiries count when available
+            }
+          }) || []
+
+        setUnits(unitsWithAnalytics)
+
+        // Calculate overall stats
+        const totalClicks = processedClickData.reduce((sum, data) => sum + data.clicks_month, 0)
+        const totalViews = totalClicks // For now, treating clicks as views
+        const totalInquiries = 0 // TODO: Calculate from inquiries table
+        const conversionRate = totalViews > 0 ? (totalInquiries / totalViews) * 100 : 0
+
+        setStats({
+          totalViews,
+          totalClicks,
+          totalInquiries,
+          conversionRate,
+        })
+      } else {
+        setUnits([])
       }
-
-      // Fetch analytics data
-      const { data: clickData, error: clickError } = await supabase
-        .from("unit_analytics")
-        .select(`
-          *,
-          vacant_units!inner(title, company_account_id)
-        `)
-        .eq("vacant_units.company_account_id", userData.company_account_id)
-        .gte("created_at", startDate.toISOString())
-        .lte("created_at", endDate.toISOString())
-
-      if (clickError) throw clickError
-
-      // Process analytics data
-      const totalViews = clickData?.reduce((sum, record) => sum + (record.views || 0), 0) || 0
-      const totalClicks = clickData?.reduce((sum, record) => sum + (record.clicks || 0), 0) || 0
-      const totalInquiries = clickData?.reduce((sum, record) => sum + (record.inquiries || 0), 0) || 0
-      const conversionRate = totalViews > 0 ? (totalInquiries / totalViews) * 100 : 0
-
-      // Group by unit for top performers
-      const unitStats = new Map()
-      clickData?.forEach((record) => {
-        const unitId = record.unit_id
-        if (!unitStats.has(unitId)) {
-          unitStats.set(unitId, {
-            id: unitId,
-            title: record.vacant_units?.title || "Unknown Unit",
-            views: 0,
-            clicks: 0,
-            inquiries: 0,
-          })
-        }
-        const stats = unitStats.get(unitId)
-        stats.views += record.views || 0
-        stats.clicks += record.clicks || 0
-        stats.inquiries += record.inquiries || 0
-      })
-
-      const topPerformingUnits = Array.from(unitStats.values())
-        .sort((a, b) => b.views - a.views)
-        .slice(0, 5)
-
-      // Group by date for daily stats
-      const dailyStatsMap = new Map()
-      clickData?.forEach((record) => {
-        const date = new Date(record.created_at).toISOString().split("T")[0]
-        if (!dailyStatsMap.has(date)) {
-          dailyStatsMap.set(date, { date, views: 0, clicks: 0, inquiries: 0 })
-        }
-        const stats = dailyStatsMap.get(date)
-        stats.views += record.views || 0
-        stats.clicks += record.clicks || 0
-        stats.inquiries += record.inquiries || 0
-      })
-
-      const dailyStats = Array.from(dailyStatsMap.values()).sort((a, b) => a.date.localeCompare(b.date))
-
-      setAnalyticsData({
-        total_views: totalViews,
-        total_clicks: totalClicks,
-        total_inquiries: totalInquiries,
-        conversion_rate: conversionRate,
-        top_performing_units: topPerformingUnits,
-        daily_stats: dailyStats,
-      })
     } catch (error) {
-      console.error("Error fetching analytics data:", error)
+      console.error("Error fetching analytics:", error)
     } finally {
       setLoading(false)
     }
   }
 
+  const formatCurrency = (amount: string | number) => {
+    const numAmount = typeof amount === "string" ? Number.parseFloat(amount) : amount
+    return new Intl.NumberFormat("en-KE", {
+      style: "currency",
+      currency: "KES",
+      minimumFractionDigits: 0,
+    }).format(numAmount || 0)
+  }
+
   if (loading) {
     return (
-      <div className="space-y-6 p-4 md:p-8">
-        <h1 className="text-3xl font-bold text-gray-900">Reports & Analytics</h1>
+      <div className="w-full space-y-4 p-4 md:p-6">
+        <h1 className="text-3xl font-bold text-gray-900">Analytics & Reports</h1>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           {[...Array(4)].map((_, i) => (
             <Card key={i} className="animate-pulse">
@@ -167,11 +166,11 @@ export default function AnalyticsPage() {
   }
 
   return (
-    <div className="space-y-6 bg-white min-h-screen p-4 md:p-8">
+    <div className="w-full space-y-4 p-4 md:p-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Reports & Analytics</h1>
-          <p className="text-gray-600 mt-1">Track performance of your vacant unit listings</p>
+          <h1 className="text-3xl font-bold text-gray-900">Analytics & Reports</h1>
+          <p className="text-gray-600 mt-1">Track performance of your vacant units</p>
         </div>
         <Select value={timeRange} onValueChange={setTimeRange}>
           <SelectTrigger className="w-[180px]">
@@ -185,7 +184,7 @@ export default function AnalyticsPage() {
         </Select>
       </div>
 
-      {/* Overview Cards */}
+      {/* Overall Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -193,7 +192,8 @@ export default function AnalyticsPage() {
             <Eye className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{analyticsData.total_views.toLocaleString()}</div>
+            <div className="text-2xl font-bold">{stats.totalViews}</div>
+            <p className="text-xs text-muted-foreground">Last 30 days</p>
           </CardContent>
         </Card>
 
@@ -203,114 +203,102 @@ export default function AnalyticsPage() {
             <MousePointer className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{analyticsData.total_clicks.toLocaleString()}</div>
+            <div className="text-2xl font-bold">{stats.totalClicks}</div>
+            <p className="text-xs text-muted-foreground">Last 30 days</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Inquiries</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{analyticsData.total_inquiries.toLocaleString()}</div>
+            <div className="text-2xl font-bold">{stats.totalInquiries}</div>
+            <p className="text-xs text-muted-foreground">Last 30 days</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Conversion Rate</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+            <BarChart3 className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{analyticsData.conversion_rate.toFixed(2)}%</div>
+            <div className="text-2xl font-bold">{stats.conversionRate.toFixed(1)}%</div>
+            <p className="text-xs text-muted-foreground">Views to inquiries</p>
           </CardContent>
         </Card>
       </div>
 
-      <Tabs defaultValue="performance" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="performance">Top Performing Units</TabsTrigger>
-          <TabsTrigger value="trends">Daily Trends</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="performance" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Top Performing Units</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {analyticsData.top_performing_units.length === 0 ? (
-                <div className="text-center py-8">
-                  <BarChart3 className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">No data available</h3>
-                  <p className="text-gray-600">Analytics data will appear here once your units start getting views</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {analyticsData.top_performing_units.map((unit, index) => (
-                    <div key={unit.id} className="flex items-center justify-between p-4 border rounded-lg">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 bg-green-100 text-green-800 rounded-full flex items-center justify-center font-semibold">
-                          {index + 1}
-                        </div>
-                        <div>
-                          <p className="font-medium">{unit.title}</p>
-                          <p className="text-sm text-gray-500">
-                            {unit.views} views • {unit.clicks} clicks • {unit.inquiries} inquiries
-                          </p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-semibold">
-                          {unit.views > 0 ? ((unit.inquiries / unit.views) * 100).toFixed(1) : "0.0"}%
+      {/* Unit Performance */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <PieChart className="h-5 w-5" />
+            Unit Performance
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {units.length === 0 ? (
+            <div className="text-center py-8">
+              <BarChart3 className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No data available</h3>
+              <p className="text-gray-600">Add some vacant units to start tracking analytics</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {units.map((unit) => {
+                const unitClickData = clickData.find((data) => data.property_id === unit.id)
+                return (
+                  <div key={unit.id} className="border rounded-lg p-4">
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex-1">
+                        <h3 className="font-semibold text-lg">{unit.title}</h3>
+                        <p className="text-gray-600">
+                          {unit.address}, {unit.city} • {formatCurrency(unit.rent_amount)}/month
                         </p>
-                        <p className="text-sm text-gray-500">conversion</p>
+                        <Badge
+                          className={
+                            unit.status === "available"
+                              ? "bg-green-100 text-green-800"
+                              : "bg-yellow-100 text-yellow-800"
+                          }
+                        >
+                          {unit.status}
+                        </Badge>
                       </div>
                     </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
 
-        <TabsContent value="trends" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Daily Performance Trends</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {analyticsData.daily_stats.length === 0 ? (
-                <div className="text-center py-8">
-                  <Calendar className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">No trend data available</h3>
-                  <p className="text-gray-600">Daily trends will appear here as data accumulates</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {analyticsData.daily_stats.map((day) => (
-                    <div key={day.date} className="flex items-center justify-between p-4 border rounded-lg">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                       <div>
-                        <p className="font-medium">{new Date(day.date).toLocaleDateString()}</p>
-                        <p className="text-sm text-gray-500">
-                          {day.views} views • {day.clicks} clicks • {day.inquiries} inquiries
-                        </p>
+                        <p className="text-gray-500">Today</p>
+                        <p className="font-semibold">{unitClickData?.clicks_today || 0} clicks</p>
                       </div>
-                      <div className="text-right">
+                      <div>
+                        <p className="text-gray-500">This Week</p>
+                        <p className="font-semibold">{unitClickData?.clicks_week || 0} clicks</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500">This Month</p>
+                        <p className="font-semibold">{unitClickData?.clicks_month || 0} clicks</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500">Last Click</p>
                         <p className="font-semibold">
-                          {day.views > 0 ? ((day.inquiries / day.views) * 100).toFixed(1) : "0.0"}%
+                          {unitClickData?.last_clicked
+                            ? new Date(unitClickData.last_clicked).toLocaleDateString()
+                            : "Never"}
                         </p>
-                        <p className="text-sm text-gray-500">conversion</p>
                       </div>
                     </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }

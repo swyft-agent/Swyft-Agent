@@ -7,23 +7,43 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { User, Building, Bell, Shield, AlertCircle, CheckCircle } from "lucide-react"
+import { User, Building, Bell, AlertCircle, CheckCircle, Globe, Eye } from "lucide-react"
 import { useAuth } from "@/components/auth-provider"
 import { supabase } from "@/lib/supabase"
 
 interface UserSettings {
+  // Profile
   full_name: string
   email: string
   phone: string
+
+  // Company
   company_name: string
   company_address: string
   company_phone: string
-  notifications_email: boolean
-  notifications_sms: boolean
-  notifications_push: boolean
+
+  // Notifications
+  email_notifications: boolean
+  sms_notifications: boolean
+  push_notifications: boolean
+  inquiry_notifications: boolean
+  payment_notifications: boolean
+
+  // Auto-response
   auto_respond_inquiries: boolean
+  auto_response_message: string
+
+  // Display
+  currency: string
+  timezone: string
+  language: string
+
+  // Privacy
+  profile_visibility: string
+  show_contact_info: boolean
 }
 
 export default function SettingsPage() {
@@ -35,10 +55,18 @@ export default function SettingsPage() {
     company_name: "",
     company_address: "",
     company_phone: "",
-    notifications_email: true,
-    notifications_sms: true,
-    notifications_push: true,
+    email_notifications: true,
+    sms_notifications: true,
+    push_notifications: true,
+    inquiry_notifications: true,
+    payment_notifications: true,
     auto_respond_inquiries: false,
+    auto_response_message: "",
+    currency: "KES",
+    timezone: "Africa/Nairobi",
+    language: "en",
+    profile_visibility: "public",
+    show_contact_info: true,
   })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -69,6 +97,15 @@ export default function SettingsPage() {
 
       if (companyError && companyError.code !== "PGRST116") throw companyError
 
+      // Fetch settings data
+      const { data: settingsData, error: settingsError } = await supabase
+        .from("settings")
+        .select("*")
+        .eq("user_id", user?.id)
+        .single()
+
+      if (settingsError && settingsError.code !== "PGRST116") throw settingsError
+
       setSettings({
         full_name: userData.full_name || "",
         email: userData.email || "",
@@ -76,10 +113,18 @@ export default function SettingsPage() {
         company_name: companyData?.company_name || "",
         company_address: companyData?.address || "",
         company_phone: companyData?.phone || "",
-        notifications_email: userData.notifications_email ?? true,
-        notifications_sms: userData.notifications_sms ?? true,
-        notifications_push: userData.notifications_push ?? true,
-        auto_respond_inquiries: userData.auto_respond_inquiries ?? false,
+        email_notifications: settingsData?.email_notifications ?? true,
+        sms_notifications: settingsData?.sms_notifications ?? true,
+        push_notifications: settingsData?.push_notifications ?? true,
+        inquiry_notifications: settingsData?.inquiry_notifications ?? true,
+        payment_notifications: settingsData?.payment_notifications ?? true,
+        auto_respond_inquiries: settingsData?.auto_respond_inquiries ?? false,
+        auto_response_message: settingsData?.auto_response_message || "",
+        currency: settingsData?.currency || "KES",
+        timezone: settingsData?.timezone || "Africa/Nairobi",
+        language: settingsData?.language || "en",
+        profile_visibility: settingsData?.profile_visibility || "public",
+        show_contact_info: settingsData?.show_contact_info ?? true,
       })
     } catch (error) {
       console.error("Error fetching settings:", error)
@@ -89,7 +134,7 @@ export default function SettingsPage() {
     }
   }
 
-  const saveSettings = async (section: "profile" | "company" | "notifications") => {
+  const saveSettings = async (section: "profile" | "company" | "notifications" | "display" | "privacy") => {
     setSaving(true)
     setError("")
     setSuccess("")
@@ -126,16 +171,31 @@ export default function SettingsPage() {
         if (error) throw error
       }
 
-      if (section === "notifications") {
-        const { error } = await supabase
+      if (section === "notifications" || section === "display" || section === "privacy") {
+        const { data: userData, error: userError } = await supabase
           .from("users")
-          .update({
-            notifications_email: settings.notifications_email,
-            notifications_sms: settings.notifications_sms,
-            notifications_push: settings.notifications_push,
-            auto_respond_inquiries: settings.auto_respond_inquiries,
-          })
+          .select("company_account_id")
           .eq("id", user?.id)
+          .single()
+
+        if (userError) throw userError
+
+        const { error } = await supabase.from("settings").upsert({
+          user_id: user?.id,
+          company_account_id: userData.company_account_id,
+          email_notifications: settings.email_notifications,
+          sms_notifications: settings.sms_notifications,
+          push_notifications: settings.push_notifications,
+          inquiry_notifications: settings.inquiry_notifications,
+          payment_notifications: settings.payment_notifications,
+          auto_respond_inquiries: settings.auto_respond_inquiries,
+          auto_response_message: settings.auto_response_message,
+          currency: settings.currency,
+          timezone: settings.timezone,
+          language: settings.language,
+          profile_visibility: settings.profile_visibility,
+          show_contact_info: settings.show_contact_info,
+        })
 
         if (error) throw error
       }
@@ -151,7 +211,7 @@ export default function SettingsPage() {
 
   if (loading) {
     return (
-      <div className="space-y-6 p-4 md:p-8">
+      <div className="w-full space-y-4 p-4 md:p-6">
         <h1 className="text-3xl font-bold text-gray-900">Settings</h1>
         <div className="grid grid-cols-1 gap-6">
           {[...Array(3)].map((_, i) => (
@@ -173,7 +233,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="space-y-6 bg-white min-h-screen p-4 md:p-8">
+    <div className="w-full space-y-4 p-4 md:p-6">
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Settings</h1>
         <p className="text-gray-600 mt-1">Manage your account and application preferences</p>
@@ -194,11 +254,12 @@ export default function SettingsPage() {
       )}
 
       <Tabs defaultValue="profile" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="profile">Profile</TabsTrigger>
           <TabsTrigger value="company">Company</TabsTrigger>
           <TabsTrigger value="notifications">Notifications</TabsTrigger>
-          <TabsTrigger value="security">Security</TabsTrigger>
+          <TabsTrigger value="display">Display</TabsTrigger>
+          <TabsTrigger value="privacy">Privacy</TabsTrigger>
         </TabsList>
 
         <TabsContent value="profile" className="space-y-4">
@@ -301,8 +362,8 @@ export default function SettingsPage() {
                   <p className="text-sm text-gray-500">Receive notifications via email</p>
                 </div>
                 <Switch
-                  checked={settings.notifications_email}
-                  onCheckedChange={(checked) => setSettings({ ...settings, notifications_email: checked })}
+                  checked={settings.email_notifications}
+                  onCheckedChange={(checked) => setSettings({ ...settings, email_notifications: checked })}
                 />
               </div>
               <div className="flex items-center justify-between">
@@ -311,8 +372,8 @@ export default function SettingsPage() {
                   <p className="text-sm text-gray-500">Receive notifications via SMS</p>
                 </div>
                 <Switch
-                  checked={settings.notifications_sms}
-                  onCheckedChange={(checked) => setSettings({ ...settings, notifications_sms: checked })}
+                  checked={settings.sms_notifications}
+                  onCheckedChange={(checked) => setSettings({ ...settings, sms_notifications: checked })}
                 />
               </div>
               <div className="flex items-center justify-between">
@@ -321,8 +382,28 @@ export default function SettingsPage() {
                   <p className="text-sm text-gray-500">Receive push notifications in browser</p>
                 </div>
                 <Switch
-                  checked={settings.notifications_push}
-                  onCheckedChange={(checked) => setSettings({ ...settings, notifications_push: checked })}
+                  checked={settings.push_notifications}
+                  onCheckedChange={(checked) => setSettings({ ...settings, push_notifications: checked })}
+                />
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>Inquiry Notifications</Label>
+                  <p className="text-sm text-gray-500">Get notified about new inquiries</p>
+                </div>
+                <Switch
+                  checked={settings.inquiry_notifications}
+                  onCheckedChange={(checked) => setSettings({ ...settings, inquiry_notifications: checked })}
+                />
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>Payment Notifications</Label>
+                  <p className="text-sm text-gray-500">Get notified about payments and transactions</p>
+                </div>
+                <Switch
+                  checked={settings.payment_notifications}
+                  onCheckedChange={(checked) => setSettings({ ...settings, payment_notifications: checked })}
                 />
               </div>
               <div className="flex items-center justify-between">
@@ -335,6 +416,18 @@ export default function SettingsPage() {
                   onCheckedChange={(checked) => setSettings({ ...settings, auto_respond_inquiries: checked })}
                 />
               </div>
+              {settings.auto_respond_inquiries && (
+                <div>
+                  <Label htmlFor="auto_response_message">Auto-response Message</Label>
+                  <Textarea
+                    id="auto_response_message"
+                    value={settings.auto_response_message}
+                    onChange={(e) => setSettings({ ...settings, auto_response_message: e.target.value })}
+                    placeholder="Thank you for your inquiry. We will get back to you shortly."
+                    rows={3}
+                  />
+                </div>
+              )}
               <Button onClick={() => saveSettings("notifications")} disabled={saving}>
                 {saving ? "Saving..." : "Save Preferences"}
               </Button>
@@ -342,32 +435,108 @@ export default function SettingsPage() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="security" className="space-y-4">
+        <TabsContent value="display" className="space-y-4">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Shield className="h-5 w-5" />
-                Security Settings
+                <Globe className="h-5 w-5" />
+                Display Settings
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <h3 className="font-medium mb-2">Change Password</h3>
-                <p className="text-sm text-gray-500 mb-4">Update your password to keep your account secure</p>
-                <Button variant="outline">Change Password</Button>
+                <Label htmlFor="currency">Currency</Label>
+                <Select
+                  value={settings.currency}
+                  onValueChange={(value) => setSettings({ ...settings, currency: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="KES">Kenyan Shilling (KES)</SelectItem>
+                    <SelectItem value="USD">US Dollar (USD)</SelectItem>
+                    <SelectItem value="EUR">Euro (EUR)</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <div>
-                <h3 className="font-medium mb-2">Two-Factor Authentication</h3>
-                <p className="text-sm text-gray-500 mb-4">Add an extra layer of security to your account</p>
-                <Button variant="outline">Enable 2FA</Button>
+                <Label htmlFor="timezone">Timezone</Label>
+                <Select
+                  value={settings.timezone}
+                  onValueChange={(value) => setSettings({ ...settings, timezone: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Africa/Nairobi">Africa/Nairobi</SelectItem>
+                    <SelectItem value="UTC">UTC</SelectItem>
+                    <SelectItem value="America/New_York">America/New_York</SelectItem>
+                    <SelectItem value="Europe/London">Europe/London</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <div>
-                <h3 className="font-medium mb-2">Active Sessions</h3>
-                <p className="text-sm text-gray-500 mb-4">
-                  Manage devices that are currently signed in to your account
-                </p>
-                <Button variant="outline">View Sessions</Button>
+                <Label htmlFor="language">Language</Label>
+                <Select
+                  value={settings.language}
+                  onValueChange={(value) => setSettings({ ...settings, language: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="en">English</SelectItem>
+                    <SelectItem value="sw">Swahili</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
+              <Button onClick={() => saveSettings("display")} disabled={saving}>
+                {saving ? "Saving..." : "Save Display Settings"}
+              </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="privacy" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Eye className="h-5 w-5" />
+                Privacy Settings
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div>
+                <Label htmlFor="profile_visibility">Profile Visibility</Label>
+                <Select
+                  value={settings.profile_visibility}
+                  onValueChange={(value) => setSettings({ ...settings, profile_visibility: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="public">Public</SelectItem>
+                    <SelectItem value="private">Private</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-sm text-gray-500 mt-1">Control who can see your profile information</p>
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>Show Contact Information</Label>
+                  <p className="text-sm text-gray-500">Display your contact info on listings</p>
+                </div>
+                <Switch
+                  checked={settings.show_contact_info}
+                  onCheckedChange={(checked) => setSettings({ ...settings, show_contact_info: checked })}
+                />
+              </div>
+              <Button onClick={() => saveSettings("privacy")} disabled={saving}>
+                {saving ? "Saving..." : "Save Privacy Settings"}
+              </Button>
             </CardContent>
           </Card>
         </TabsContent>

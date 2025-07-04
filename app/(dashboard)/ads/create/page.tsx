@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -12,11 +11,12 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { CalendarIcon, ArrowLeft } from "lucide-react"
+import { CalendarIcon, ArrowLeft, AlertCircle } from "lucide-react"
 import { format } from "date-fns"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/components/auth-provider"
 import { supabase } from "@/lib/supabase"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import Link from "next/link"
 
 interface VacantUnit {
@@ -24,6 +24,9 @@ interface VacantUnit {
   title: string
   address: string
   city: string
+  rent_amount: string
+  bedrooms: number
+  bathrooms: number
 }
 
 export default function CreateAdPage() {
@@ -33,6 +36,7 @@ export default function CreateAdPage() {
   const [vacantUnits, setVacantUnits] = useState<VacantUnit[]>([])
   const [expiryDate, setExpiryDate] = useState<Date>()
   const [calendarOpen, setCalendarOpen] = useState(false)
+  const [error, setError] = useState("")
 
   const [formData, setFormData] = useState({
     title: "",
@@ -51,6 +55,7 @@ export default function CreateAdPage() {
 
   const fetchVacantUnits = async () => {
     try {
+      // Get user's company ID
       const { data: userData, error: userError } = await supabase
         .from("users")
         .select("company_account_id")
@@ -59,9 +64,10 @@ export default function CreateAdPage() {
 
       if (userError) throw userError
 
+      // Fetch only vacant units belonging to the current user's company
       const { data, error } = await supabase
         .from("vacant_units")
-        .select("id, title, address, city")
+        .select("id, title, address, city, rent_amount, bedrooms, bathrooms")
         .eq("company_account_id", userData.company_account_id)
         .eq("status", "available")
         .order("created_at", { ascending: false })
@@ -70,13 +76,26 @@ export default function CreateAdPage() {
       setVacantUnits(data || [])
     } catch (error) {
       console.error("Error fetching vacant units:", error)
+      setError("Failed to load your vacant units")
     }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setError("")
+
     if (!expiryDate) {
-      alert("Please select an expiry date")
+      setError("Please select an expiry date")
+      return
+    }
+
+    if (!formData.property_id) {
+      setError("Please select a vacant unit to promote")
+      return
+    }
+
+    if (Number.parseFloat(formData.budget) < 100) {
+      setError("Minimum budget is KSh 100")
       return
     }
 
@@ -91,7 +110,8 @@ export default function CreateAdPage() {
 
       if (userError) throw userError
 
-      const { error } = await supabase.from("ads").insert([
+      // Create the ad
+      const { error: adError } = await supabase.from("ads").insert([
         {
           title: formData.title,
           description: formData.description,
@@ -106,19 +126,19 @@ export default function CreateAdPage() {
         },
       ])
 
-      if (error) throw error
+      if (adError) throw adError
 
       router.push("/ads")
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error creating ad:", error)
-      alert("Failed to create ad. Please try again.")
+      setError(error.message || "Failed to create ad. Please try again.")
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <div className="space-y-6 bg-white min-h-screen p-4 md:p-8">
+    <div className="w-full space-y-4 p-4 md:p-6">
       <div className="flex items-center gap-4">
         <Link href="/ads">
           <Button variant="outline" size="sm">
@@ -132,12 +152,55 @@ export default function CreateAdPage() {
         </div>
       </div>
 
+      {error && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
+      {vacantUnits.length === 0 && !loading && (
+        <Alert>
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            You don't have any available vacant units to promote. Please add a vacant unit first.
+          </AlertDescription>
+        </Alert>
+      )}
+
       <Card className="max-w-2xl">
         <CardHeader>
           <CardTitle>Ad Details</CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
+            <div>
+              <Label htmlFor="property">Select Vacant Unit *</Label>
+              <Select
+                value={formData.property_id}
+                onValueChange={(value) => setFormData({ ...formData, property_id: value })}
+                required
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Choose a vacant unit to promote" />
+                </SelectTrigger>
+                <SelectContent>
+                  {vacantUnits.map((unit) => (
+                    <SelectItem key={unit.id} value={unit.id}>
+                      <div className="flex flex-col">
+                        <span className="font-medium">{unit.title}</span>
+                        <span className="text-sm text-gray-500">
+                          {unit.address}, {unit.city} • {unit.bedrooms}BR/{unit.bathrooms}BA • KSh{" "}
+                          {Number(unit.rent_amount || 0).toLocaleString()}/month
+                        </span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-sm text-gray-500 mt-1">Only your available vacant units are shown</p>
+            </div>
+
             <div>
               <Label htmlFor="title">Ad Title *</Label>
               <Input
@@ -159,25 +222,6 @@ export default function CreateAdPage() {
                 rows={4}
                 required
               />
-            </div>
-
-            <div>
-              <Label htmlFor="property">Select Property *</Label>
-              <Select
-                value={formData.property_id}
-                onValueChange={(value) => setFormData({ ...formData, property_id: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Choose a vacant unit to promote" />
-                </SelectTrigger>
-                <SelectContent>
-                  {vacantUnits.map((unit) => (
-                    <SelectItem key={unit.id} value={unit.id}>
-                      {unit.title} - {unit.address}, {unit.city}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
             </div>
 
             <div>
@@ -255,7 +299,7 @@ export default function CreateAdPage() {
             </div>
 
             <div className="flex gap-4">
-              <Button type="submit" disabled={loading} className="flex-1">
+              <Button type="submit" disabled={loading || vacantUnits.length === 0} className="flex-1">
                 {loading ? "Creating..." : "Create Ad"}
               </Button>
               <Link href="/ads">
