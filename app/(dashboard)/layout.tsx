@@ -53,7 +53,7 @@ export default function DashboardLayout({
       <SidebarProvider>
         <AppSidebar />
         <SidebarInset className="flex-1 flex flex-col min-w-0">
-          <main className="flex-1 overflow-auto p-4 md:p-6 bg-white">{children}</main>
+          <main className="flex-1 overflow-auto p-2 md:p-6 bg-white">{children}</main>
         </SidebarInset>
       </SidebarProvider>
     </div>

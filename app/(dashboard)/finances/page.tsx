@@ -2,236 +2,177 @@
 
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { DollarSign, TrendingUp, TrendingDown, Download, Search, Calendar, Upload, CreditCard } from "lucide-react"
-import EmptyState from "@/components/empty-state"
-import { shouldShowSampleData } from "@/lib/environment"
-import {
-  AreaChart,
-  Area,
-  BarChart,
-  Bar,
-  PieChart,
-  Pie,
-  Cell,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Legend,
-  ResponsiveContainer,
-  Tooltip,
-} from "recharts"
-import { ExcelImport } from "@/components/excel-import"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { TrendingUp, TrendingDown, DollarSign, CreditCard, Receipt, PieChart, Download, Calendar } from "lucide-react"
+import { FinanceCharts } from "@/components/finance-charts"
+
+interface FinancialData {
+  totalRevenue: number
+  totalExpenses: number
+  netIncome: number
+  monthlyGrowth: number
+  recentTransactions: Transaction[]
+  monthlyBreakdown: MonthlyData[]
+}
+
+interface Transaction {
+  id: string
+  type: "income" | "expense"
+  description: string
+  amount: number
+  date: string
+  category: string
+  building?: string
+}
+
+interface MonthlyData {
+  month: string
+  revenue: number
+  expenses: number
+  netIncome: number
+}
+
+// Format currency in KSH
+const formatCurrency = (amount: number) => {
+  return new Intl.NumberFormat("en-KE", {
+    style: "currency",
+    currency: "KES",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(amount)
+}
+
+// Format large numbers with K/M suffix
+const formatCurrencyShort = (amount: number) => {
+  if (amount >= 1000000) {
+    return `KSh ${(amount / 1000000).toFixed(1)}M`
+  } else if (amount >= 1000) {
+    return `KSh ${(amount / 1000).toFixed(1)}K`
+  }
+  return formatCurrency(amount)
+}
 
 export default function FinancesPage() {
-  const [showSampleData, setShowSampleData] = useState(false)
-  const [searchTerm, setSearchTerm] = useState("")
-  const [typeFilter, setTypeFilter] = useState("all")
-  const [statusFilter, setStatusFilter] = useState("all")
-  const [showImport, setShowImport] = useState(false)
-  const [financialData, setFinancialData] = useState<any>({
-    revenueBreakdown: [],
-    expenseBreakdown: [],
-    cashFlow: [],
-    transactions: [],
+  const [financialData, setFinancialData] = useState<FinancialData>({
+    totalRevenue: 0,
+    totalExpenses: 0,
+    netIncome: 0,
+    monthlyGrowth: 0,
+    recentTransactions: [],
+    monthlyBreakdown: [],
   })
+  const [loading, setLoading] = useState(true)
+  const [selectedPeriod, setSelectedPeriod] = useState("thisMonth")
 
   useEffect(() => {
-    // Only show sample data in preview environments
-    setShowSampleData(shouldShowSampleData())
+    fetchFinancialData()
+  }, [selectedPeriod])
 
-    // In a real app, we would fetch actual data here
-    if (!shouldShowSampleData()) {
-      // This would be a real API call in production
-      // fetchFinancialData().then(data => setFinancialData(data))
-    }
-  }, [])
+  const fetchFinancialData = async () => {
+    try {
+      // Simulate API call - replace with actual API endpoint
+      await new Promise((resolve) => setTimeout(resolve, 1000))
 
-  // Sample data - only used in preview
-  const sampleRevenueBreakdownData = [
-    { month: "Jan", rent: 8500000, deposits: 1200000 },
-    { month: "Feb", rent: 8750000, deposits: 980000 },
-    { month: "Mar", rent: 9100000, deposits: 1450000 },
-    { month: "Apr", rent: 8900000, deposits: 1100000 },
-    { month: "May", rent: 9300000, deposits: 1350000 },
-    { month: "Jun", rent: 9500000, deposits: 1200000 },
-  ]
-
-  const sampleExpenseBreakdownData = [
-    { category: "Maintenance", amount: 2100000, percentage: 35, color: "#EF4444" },
-    { category: "Utilities", amount: 1800000, percentage: 30, color: "#F59E0B" },
-    { category: "Insurance", amount: 900000, percentage: 15, color: "#3B82F6" },
-    { category: "Property Tax", amount: 600000, percentage: 10, color: "#8B5CF6" },
-    { category: "Management", amount: 600000, percentage: 10, color: "#10B981" },
-  ]
-
-  const sampleCashFlowData = [
-    { month: "Jan", inflow: 10470000, outflow: 6200000, netFlow: 4270000 },
-    { month: "Feb", inflow: 10530000, outflow: 6100000, netFlow: 4430000 },
-    { month: "Mar", inflow: 11440000, outflow: 6800000, netFlow: 4640000 },
-    { month: "Apr", inflow: 10860000, outflow: 6400000, netFlow: 4460000 },
-    { month: "May", inflow: 11620000, outflow: 6900000, netFlow: 4720000 },
-    { month: "Jun", inflow: 11740000, outflow: 7100000, netFlow: 4640000 },
-  ]
-
-  // Sample transaction data
-  const sampleTransactions = [
-    {
-      id: 1,
-      date: "2025-06-04",
-      description: "Rent Collection - Skyline Apartments",
-      amount: 2850000,
-      type: "revenue",
-      status: "completed",
-      category: "rent",
-    },
-    {
-      id: 2,
-      date: "2025-06-03",
-      description: "Maintenance - Downtown Lofts",
-      amount: -180000,
-      type: "expense",
-      status: "completed",
-      category: "maintenance",
-    },
-    {
-      id: 3,
-      date: "2025-06-02",
-      description: "Security Deposit - Parkview Heights",
-      amount: 450000,
-      type: "revenue",
-      status: "completed",
-      category: "deposit",
-    },
-    {
-      id: 4,
-      date: "2025-06-01",
-      description: "Utility Bills - Multiple Properties",
-      amount: -320000,
-      type: "expense",
-      status: "pending",
-      category: "utilities",
-    },
-    {
-      id: 5,
-      date: "2025-05-31",
-      description: "Late Fees - Various Tenants",
-      amount: 85000,
-      type: "revenue",
-      status: "completed",
-      category: "fees",
-    },
-  ]
-
-  // Use sample data in preview, real data in production
-  const revenueBreakdownData = showSampleData ? sampleRevenueBreakdownData : financialData.revenueBreakdown
-  const expenseBreakdownData = showSampleData ? sampleExpenseBreakdownData : financialData.expenseBreakdown
-  const cashFlowData = showSampleData ? sampleCashFlowData : financialData.cashFlow
-  const transactions = showSampleData ? sampleTransactions : financialData.transactions || []
-
-  const filteredTransactions = transactions.filter((transaction) => {
-    const matchesSearch = transaction.description.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesType = typeFilter === "all" || transaction.type === typeFilter
-    const matchesStatus = statusFilter === "all" || transaction.status === statusFilter
-
-    return matchesSearch && matchesType && matchesStatus
-  })
-
-  const totalRevenue = transactions
-    .filter((t) => t.type === "revenue" && t.status === "completed")
-    .reduce((sum, t) => sum + t.amount, 0)
-
-  const totalExpenses = Math.abs(
-    transactions.filter((t) => t.type === "expense" && t.status === "completed").reduce((sum, t) => sum + t.amount, 0),
-  )
-
-  const netProfit = totalRevenue - totalExpenses
-  const profitMargin = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0
-
-  const formatCurrency = (amount: number): string => {
-    return new Intl.NumberFormat("en-KE", {
-      style: "currency",
-      currency: "KES",
-      minimumFractionDigits: 0,
-    }).format(amount)
-  }
-
-  const formatCurrencyShort = (amount: number): string => {
-    if (amount >= 1000000) {
-      return `KSh ${(amount / 1000000).toFixed(1)}M`
-    } else if (amount >= 1000) {
-      return `KSh ${(amount / 1000).toFixed(1)}K`
-    }
-    return formatCurrency(amount)
-  }
-
-  const handleImportSuccess = (importedData: any[]) => {
-    console.log("Imported financial data:", importedData)
-    setShowImport(false)
-
-    // In a real app, we would process and save this data
-    // processAndSaveFinancialData(importedData).then(() => {
-    //   fetchFinancialData().then(data => setFinancialData(data))
-    // })
-  }
-
-  const financialColumns = [
-    { key: "date", label: "Date", required: true, type: "date" },
-    { key: "description", label: "Description", required: true },
-    { key: "amount", label: "Amount", required: true, type: "number" },
-    { key: "type", label: "Type", required: true },
-    { key: "category", label: "Category", required: false },
-    { key: "status", label: "Status", required: false },
-  ]
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "completed":
-        return <Badge className="bg-green-500">Completed</Badge>
-      case "pending":
-        return <Badge variant="outline">Pending</Badge>
-      case "processed":
-        return <Badge variant="default">Processed</Badge>
-      default:
-        return <Badge variant="secondary">{status}</Badge>
+      // Sample data with KSH amounts
+      setFinancialData({
+        totalRevenue: 4250000, // KSh 4.25M
+        totalExpenses: 1680000, // KSh 1.68M
+        netIncome: 2570000, // KSh 2.57M
+        monthlyGrowth: 12.5,
+        recentTransactions: [
+          {
+            id: "1",
+            type: "income",
+            description: "Rent Payment - Westlands Apartment 3B",
+            amount: 85000,
+            date: "2024-01-15",
+            category: "Rent",
+            building: "Westlands Complex",
+          },
+          {
+            id: "2",
+            type: "expense",
+            description: "Maintenance - Plumbing Repair",
+            amount: 15000,
+            date: "2024-01-14",
+            category: "Maintenance",
+            building: "Kilimani Tower",
+          },
+          {
+            id: "3",
+            type: "income",
+            description: "Rent Payment - Karen Heights Unit 12",
+            amount: 120000,
+            date: "2024-01-13",
+            category: "Rent",
+            building: "Karen Heights",
+          },
+          {
+            id: "4",
+            type: "expense",
+            description: "Security Services - Monthly Fee",
+            amount: 45000,
+            date: "2024-01-12",
+            category: "Security",
+            building: "All Properties",
+          },
+          {
+            id: "5",
+            type: "income",
+            description: "Deposit - New Tenant",
+            amount: 170000,
+            date: "2024-01-11",
+            category: "Deposit",
+            building: "Parklands Studio",
+          },
+        ],
+        monthlyBreakdown: [
+          { month: "Jan", revenue: 4250000, expenses: 1680000, netIncome: 2570000 },
+          { month: "Dec", revenue: 3980000, expenses: 1520000, netIncome: 2460000 },
+          { month: "Nov", revenue: 4100000, expenses: 1650000, netIncome: 2450000 },
+          { month: "Oct", revenue: 3850000, expenses: 1480000, netIncome: 2370000 },
+          { month: "Sep", revenue: 3920000, expenses: 1590000, netIncome: 2330000 },
+          { month: "Aug", revenue: 3750000, expenses: 1420000, netIncome: 2330000 },
+        ],
+      })
+    } catch (error) {
+      console.error("Error fetching financial data:", error)
+    } finally {
+      setLoading(false)
     }
   }
 
-  const getTypeBadge = (type: string) => {
-    switch (type) {
-      case "revenue":
-        return <Badge className="bg-blue-500">Revenue</Badge>
-      case "expense":
-        return <Badge className="bg-red-500">Expense</Badge>
-      default:
-        return <Badge variant="outline">{type}</Badge>
-    }
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
+      </div>
+    )
   }
-
-  // Check if we have any data to display
-  const hasData =
-    showSampleData ||
-    financialData.revenueBreakdown?.length > 0 ||
-    financialData.expenseBreakdown?.length > 0 ||
-    financialData.cashFlow?.length > 0 ||
-    financialData.transactions?.length > 0
 
   return (
-    <div className="h-full flex flex-col space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+    <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
+      <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Financial Analytics</h1>
-          <p className="text-muted-foreground">Comprehensive financial performance and detailed analytics</p>
+          <h2 className="text-3xl font-bold tracking-tight">Financial Overview</h2>
+          <p className="text-muted-foreground">Track your property revenue and expenses</p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setShowImport(true)}>
-            <Upload className="mr-2 h-4 w-4" /> Import Data
-          </Button>
+        <div className="flex items-center space-x-2">
+          <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
+            <SelectTrigger className="w-[180px]">
+              <Calendar className="mr-2 h-4 w-4" />
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="thisMonth">This Month</SelectItem>
+              <SelectItem value="lastMonth">Last Month</SelectItem>
+              <SelectItem value="thisQuarter">This Quarter</SelectItem>
+              <SelectItem value="thisYear">This Year</SelectItem>
+            </SelectContent>
+          </Select>
           <Button variant="outline">
             <Download className="mr-2 h-4 w-4" />
             Export
@@ -239,332 +180,227 @@ export default function FinancesPage() {
         </div>
       </div>
 
-      {!hasData ? (
-        <div className="space-y-6">
-          <div>
-            <h2 className="text-2xl font-bold">Finances</h2>
-            <p className="text-gray-600">Track your rental income and expenses.</p>
-          </div>
-
-          <div className="text-center py-12">
-            <div className="text-gray-400 mb-4">
-              <svg className="mx-auto h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1"
-                />
-              </svg>
+      {/* Financial Summary Cards */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">{formatCurrencyShort(financialData.totalRevenue)}</div>
+            <div className="flex items-center text-xs text-muted-foreground">
+              <TrendingUp className="mr-1 h-3 w-3 text-green-500" />+{financialData.monthlyGrowth}% from last month
             </div>
-            <h3 className="text-lg font-medium text-gray-900">No Financial Data</h3>
-            <p className="text-gray-500">Start by adding rental income and expenses.</p>
-          </div>
-        </div>
-      ) : (
-        <>
-          {/* Financial Overview Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {[
-              {
-                title: "Total Revenue",
-                value: formatCurrencyShort(totalRevenue),
-                change: "+12.5%",
-                icon: DollarSign,
-                trend: "up",
-              },
-              {
-                title: "Total Expenses",
-                value: formatCurrencyShort(totalExpenses),
-                change: "+8.3%",
-                icon: TrendingDown,
-                trend: "up",
-              },
-              {
-                title: "Net Profit",
-                value: formatCurrencyShort(netProfit),
-                change: "+15.2%",
-                icon: TrendingUp,
-                trend: "up",
-              },
-              {
-                title: "Profit Margin",
-                value: `${profitMargin.toFixed(1)}%`,
-                change: "+2.1%",
-                icon: Calendar,
-                trend: "up",
-              },
-            ].map((metric, index) => (
-              <Card key={index} className="border-none shadow-sm">
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <CardTitle className="text-sm font-medium">{metric.title}</CardTitle>
-                  <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
-                    <metric.icon className="h-5 w-5 text-primary" />
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{metric.value}</div>
-                  <div
-                    className={`flex items-center text-xs ${metric.trend === "up" ? "text-green-600" : "text-red-600"}`}
-                  >
-                    {metric.trend === "up" ? (
-                      <TrendingUp className="h-3 w-3 mr-1" />
-                    ) : (
-                      <TrendingDown className="h-3 w-3 mr-1" />
-                    )}
-                    {metric.change} from last month
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+          </CardContent>
+        </Card>
 
-          {/* Revenue & Expense Analytics */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card className="border-none shadow-sm">
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <TrendingUp className="h-5 w-5 mr-2 text-green-600" />
-                  Revenue Breakdown Analysis
-                </CardTitle>
-                <CardDescription>Monthly revenue streams and sources</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {revenueBreakdownData.length > 0 ? (
-                  <div className="h-[300px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={revenueBreakdownData}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="month" />
-                        <YAxis tickFormatter={(value) => `${(value / 1000000).toFixed(1)}M`} />
-                        <Tooltip formatter={(value) => formatCurrency(Number(value))} />
-                        <Legend />
-                        <Area
-                          type="monotone"
-                          dataKey="rent"
-                          stackId="1"
-                          stroke="#10B981"
-                          fill="#10B981"
-                          fillOpacity={0.8}
-                        />
-                        <Area
-                          type="monotone"
-                          dataKey="deposits"
-                          stackId="1"
-                          stroke="#3B82F6"
-                          fill="#3B82F6"
-                          fillOpacity={0.8}
-                        />
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  </div>
-                ) : (
-                  <EmptyState
-                    icon={<TrendingUp className="h-8 w-8" />}
-                    title="No Revenue Data"
-                    description="Record revenue transactions to see your revenue breakdown."
-                    actionLabel="Add Transactions"
-                    actionOnClick={() => setShowImport(true)}
-                  />
-                )}
-              </CardContent>
-            </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Expenses</CardTitle>
+            <CreditCard className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-red-600">{formatCurrencyShort(financialData.totalExpenses)}</div>
+            <div className="flex items-center text-xs text-muted-foreground">
+              <TrendingDown className="mr-1 h-3 w-3 text-red-500" />
+              -5.2% from last month
+            </div>
+          </CardContent>
+        </Card>
 
-            <Card className="border-none shadow-sm">
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <TrendingDown className="h-5 w-5 mr-2 text-red-600" />
-                  Expense Distribution
-                </CardTitle>
-                <CardDescription>Breakdown of operational expenses by category</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {expenseBreakdownData.length > 0 ? (
-                  <div className="h-[300px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={expenseBreakdownData}
-                          cx="50%"
-                          cy="50%"
-                          outerRadius={100}
-                          fill="#8884d8"
-                          dataKey="amount"
-                          label={({ category, percentage }) => `${category} ${percentage}%`}
-                        >
-                          {expenseBreakdownData.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={entry.color} />
-                          ))}
-                        </Pie>
-                        <Tooltip formatter={(value) => formatCurrency(Number(value))} />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </div>
-                ) : (
-                  <EmptyState
-                    icon={<TrendingDown className="h-8 w-8" />}
-                    title="No Expense Data"
-                    description="Record expense transactions to see your expense distribution."
-                    actionLabel="Add Transactions"
-                    actionOnClick={() => setShowImport(true)}
-                  />
-                )}
-              </CardContent>
-            </Card>
-          </div>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Net Income</CardTitle>
+            <Receipt className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-blue-600">{formatCurrencyShort(financialData.netIncome)}</div>
+            <div className="flex items-center text-xs text-muted-foreground">
+              <TrendingUp className="mr-1 h-3 w-3 text-green-500" />
+              +18.7% from last month
+            </div>
+          </CardContent>
+        </Card>
 
-          {/* Cash Flow Analytics */}
-          <Card className="border-none shadow-sm">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Profit Margin</CardTitle>
+            <PieChart className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {((financialData.netIncome / financialData.totalRevenue) * 100).toFixed(1)}%
+            </div>
+            <p className="text-xs text-muted-foreground">Healthy profit margin</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Charts and Detailed View */}
+      <div className="grid gap-4 md:grid-cols-7">
+        <Card className="md:col-span-4">
+          <CardHeader>
+            <CardTitle>Revenue & Expenses Trend</CardTitle>
+            <CardDescription>Monthly financial performance overview</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <FinanceCharts />
+          </CardContent>
+        </Card>
+
+        <Card className="md:col-span-3">
+          <CardHeader>
+            <CardTitle>Recent Transactions</CardTitle>
+            <CardDescription>Latest financial activities</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {financialData.recentTransactions.map((transaction) => (
+                <div key={transaction.id} className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <div
+                      className={`w-2 h-2 rounded-full ${
+                        transaction.type === "income" ? "bg-green-500" : "bg-red-500"
+                      }`}
+                    />
+                    <div>
+                      <p className="text-sm font-medium line-clamp-1">{transaction.description}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {transaction.building} • {new Date(transaction.date).toLocaleDateString()}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p
+                      className={`text-sm font-medium ${
+                        transaction.type === "income" ? "text-green-600" : "text-red-600"
+                      }`}
+                    >
+                      {transaction.type === "income" ? "+" : "-"}
+                      {formatCurrency(transaction.amount)}
+                    </p>
+                    <Badge variant="outline" className="text-xs">
+                      {transaction.category}
+                    </Badge>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Detailed Financial Breakdown */}
+      <Tabs defaultValue="monthly" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="monthly">Monthly Breakdown</TabsTrigger>
+          <TabsTrigger value="categories">By Category</TabsTrigger>
+          <TabsTrigger value="properties">By Property</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="monthly" className="space-y-4">
+          <Card>
             <CardHeader>
-              <CardTitle className="flex items-center">
-                <Calendar className="h-5 w-5 mr-2 text-purple-600" />
-                Cash Flow Analysis
-              </CardTitle>
-              <CardDescription>Monthly cash inflows, outflows, and net cash flow</CardDescription>
+              <CardTitle>Monthly Financial Breakdown</CardTitle>
+              <CardDescription>Detailed month-by-month financial performance</CardDescription>
             </CardHeader>
             <CardContent>
-              {cashFlowData.length > 0 ? (
-                <div className="h-[300px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={cashFlowData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="month" />
-                      <YAxis tickFormatter={(value) => `${(value / 1000000).toFixed(1)}M`} />
-                      <Tooltip formatter={(value) => formatCurrency(Number(value))} />
-                      <Legend />
-                      <Bar dataKey="inflow" fill="#10B981" name="Cash Inflow" />
-                      <Bar dataKey="outflow" fill="#EF4444" name="Cash Outflow" />
-                      <Bar dataKey="netFlow" fill="#3B82F6" name="Net Cash Flow" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              ) : (
-                <EmptyState
-                  icon={<Calendar className="h-8 w-8" />}
-                  title="No Cash Flow Data"
-                  description="Record financial transactions to see your cash flow analysis."
-                  actionLabel="Add Transactions"
-                  actionOnClick={() => setShowImport(true)}
-                />
-              )}
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left p-2">Month</th>
+                      <th className="text-right p-2">Revenue</th>
+                      <th className="text-right p-2">Expenses</th>
+                      <th className="text-right p-2">Net Income</th>
+                      <th className="text-right p-2">Margin</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {financialData.monthlyBreakdown.map((month) => (
+                      <tr key={month.month} className="border-b">
+                        <td className="p-2 font-medium">{month.month} 2024</td>
+                        <td className="p-2 text-right text-green-600">{formatCurrency(month.revenue)}</td>
+                        <td className="p-2 text-right text-red-600">{formatCurrency(month.expenses)}</td>
+                        <td className="p-2 text-right text-blue-600 font-medium">{formatCurrency(month.netIncome)}</td>
+                        <td className="p-2 text-right">{((month.netIncome / month.revenue) * 100).toFixed(1)}%</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </CardContent>
           </Card>
+        </TabsContent>
 
-          {/* Transactions Table */}
-          <div className="flex-1 overflow-hidden">
-            <Card className="border-none shadow-sm h-full">
-              <CardHeader>
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                  <div>
-                    <CardTitle>Financial Transaction History</CardTitle>
-                    <CardDescription>Detailed record of all financial transactions</CardDescription>
-                  </div>
-                  <div className="flex gap-2 w-full sm:w-auto">
-                    <div className="relative flex-1 sm:w-[200px]">
-                      <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        placeholder="Search transactions..."
-                        className="pl-8"
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                      />
+        <TabsContent value="categories" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Expense Categories</CardTitle>
+              <CardDescription>Breakdown of expenses by category</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {[
+                  { category: "Maintenance", amount: 450000, percentage: 26.8 },
+                  { category: "Security", amount: 380000, percentage: 22.6 },
+                  { category: "Utilities", amount: 320000, percentage: 19.0 },
+                  { category: "Management", amount: 280000, percentage: 16.7 },
+                  { category: "Insurance", amount: 150000, percentage: 8.9 },
+                  { category: "Other", amount: 100000, percentage: 6.0 },
+                ].map((item) => (
+                  <div key={item.category} className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-3 h-3 bg-primary rounded-full" />
+                      <span className="font-medium">{item.category}</span>
                     </div>
-                    <Select value={typeFilter} onValueChange={setTypeFilter}>
-                      <SelectTrigger className="w-[120px]">
-                        <SelectValue placeholder="Type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Types</SelectItem>
-                        <SelectItem value="revenue">Revenue</SelectItem>
-                        <SelectItem value="expense">Expense</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Select value={statusFilter} onValueChange={setStatusFilter}>
-                      <SelectTrigger className="w-[120px]">
-                        <SelectValue placeholder="Status" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Status</SelectItem>
-                        <SelectItem value="completed">Completed</SelectItem>
-                        <SelectItem value="pending">Pending</SelectItem>
-                        <SelectItem value="processed">Processed</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <div className="text-right">
+                      <p className="font-medium">{formatCurrency(item.amount)}</p>
+                      <p className="text-xs text-muted-foreground">{item.percentage}%</p>
+                    </div>
                   </div>
-                </div>
-              </CardHeader>
-              <CardContent className="p-0 flex-1">
-                <div className="overflow-auto h-full">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Description</TableHead>
-                        <TableHead>Type</TableHead>
-                        <TableHead>Amount</TableHead>
-                        <TableHead>Category</TableHead>
-                        <TableHead>Status</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredTransactions.length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={6} className="h-24 text-center">
-                            <EmptyState
-                              icon={<CreditCard className="h-8 w-8" />}
-                              title="No Transactions Found"
-                              description={
-                                transactions.length === 0
-                                  ? "Start by adding financial transactions."
-                                  : "No transactions match your current filters."
-                              }
-                              actionLabel={transactions.length === 0 ? "Import Transactions" : "Clear Filters"}
-                              actionOnClick={
-                                transactions.length === 0
-                                  ? () => setShowImport(true)
-                                  : () => {
-                                      setSearchTerm("")
-                                      setTypeFilter("all")
-                                      setStatusFilter("all")
-                                    }
-                              }
-                            />
-                          </TableCell>
-                        </TableRow>
-                      ) : (
-                        filteredTransactions.map((transaction) => (
-                          <TableRow key={transaction.id}>
-                            <TableCell>{new Date(transaction.date).toLocaleDateString()}</TableCell>
-                            <TableCell className="font-medium">{transaction.description}</TableCell>
-                            <TableCell>{getTypeBadge(transaction.type)}</TableCell>
-                            <TableCell className={transaction.amount < 0 ? "text-red-600" : "text-green-600"}>
-                              {formatCurrency(Math.abs(transaction.amount))}
-                            </TableCell>
-                            <TableCell>
-                              <Badge variant="outline">{transaction.category}</Badge>
-                            </TableCell>
-                            <TableCell>{getStatusBadge(transaction.status)}</TableCell>
-                          </TableRow>
-                        ))
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </>
-      )}
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-      <ExcelImport
-        open={showImport}
-        onOpenChange={setShowImport}
-        onImportSuccess={handleImportSuccess}
-        tableName="financial_data"
-        columns={financialColumns}
-        title="Import Financial Data"
-        description="Upload an Excel file with financial transaction data"
-      />
+        <TabsContent value="properties" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Revenue by Property</CardTitle>
+              <CardDescription>Performance breakdown by individual properties</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {[
+                  { property: "Westlands Complex", revenue: 1200000, units: 8, occupancy: 100 },
+                  { property: "Kilimani Tower", revenue: 980000, units: 6, occupancy: 83 },
+                  { property: "Karen Heights", revenue: 850000, units: 5, occupancy: 100 },
+                  { property: "Parklands Studio", revenue: 720000, units: 4, occupancy: 75 },
+                  { property: "Lavington Apartments", revenue: 500000, units: 3, occupancy: 67 },
+                ].map((property) => (
+                  <div key={property.property} className="flex items-center justify-between p-3 border rounded-lg">
+                    <div>
+                      <p className="font-medium">{property.property}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {property.units} units • {property.occupancy}% occupied
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-medium text-green-600">{formatCurrency(property.revenue)}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {formatCurrency(property.revenue / property.units)}/unit
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }

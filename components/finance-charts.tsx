@@ -53,10 +53,10 @@ const cashFlowData = [
 ]
 
 interface FinanceChartsProps {
-  type: "overview" | "revenue" | "expenses" | "cashflow"
+  type?: "overview" | "revenue" | "expenses" | "cashflow"
 }
 
-export default function FinanceCharts({ type }: FinanceChartsProps) {
+export function FinanceCharts({ type = "overview" }: FinanceChartsProps) {
   // Overview shows a simplified dashboard with fewer charts
   if (type === "overview") {
     return (
@@ -230,3 +230,5 @@ export default function FinanceCharts({ type }: FinanceChartsProps) {
 
   return null
 }
+
+export default FinanceCharts

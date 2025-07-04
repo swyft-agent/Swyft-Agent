@@ -13,14 +13,7 @@ interface EmptyStateProps {
   className?: string
 }
 
-export default function EmptyState({
-  title,
-  description,
-  actionLabel,
-  actionHref,
-  onAction,
-  className = "",
-}: EmptyStateProps) {
+export function EmptyState({ title, description, actionLabel, actionHref, onAction, className = "" }: EmptyStateProps) {
   return (
     <Card className={`border-dashed ${className}`}>
       <CardContent className="flex flex-col items-center justify-center p-8 text-center">
@@ -47,3 +40,5 @@ export default function EmptyState({
     </Card>
   )
 }
+
+export default EmptyState

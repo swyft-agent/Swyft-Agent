@@ -54,7 +54,7 @@ interface AnalyticsChartsProps {
   type: "overview" | "tenants" | "properties" | "maintenance"
 }
 
-export default function AnalyticsCharts({ type }: AnalyticsChartsProps) {
+export function AnalyticsCharts({ type }: AnalyticsChartsProps) {
   // Overview shows a simplified dashboard with fewer charts
   if (type === "overview") {
     return (
@@ -241,3 +241,5 @@ export default function AnalyticsCharts({ type }: AnalyticsChartsProps) {
 
   return null
 }
+
+export default AnalyticsCharts
