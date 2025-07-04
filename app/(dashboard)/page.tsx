@@ -113,7 +113,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="flex-1 space-y-4 p-2 md:p-6">
+    <div className="flex-1 space-y-4 p-4 md:p-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between space-y-2 sm:space-y-0">
         <h2 className="text-2xl md:text-3xl font-bold tracking-tight">Dashboard</h2>
         <div className="flex items-center space-x-2">

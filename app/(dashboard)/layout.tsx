@@ -49,13 +49,13 @@ export default function DashboardLayout({
   console.log("Rendering dashboard for user:", user.email)
 
   return (
-    <div className="flex h-screen bg-gray-50">
-      <SidebarProvider>
+    <SidebarProvider>
+      <div className="min-h-screen flex w-full">
         <AppSidebar />
         <SidebarInset className="flex-1 flex flex-col min-w-0">
-          <main className="flex-1 overflow-auto p-2 md:p-6 bg-white">{children}</main>
+          <main className="flex-1 overflow-auto bg-white">{children}</main>
         </SidebarInset>
-      </SidebarProvider>
-    </div>
+      </div>
+    </SidebarProvider>
   )
 }
