@@ -16,7 +16,6 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Badge } from "@/components/ui/badge"
 import {
   AlertCircle,
-  Building2,
   MapPin,
   DollarSign,
   Home,
@@ -36,13 +35,6 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { supabase } from "@/lib/supabase"
 import { format } from "date-fns"
 import { cn } from "@/lib/utils"
-
-interface Building {
-  id: string
-  name: string
-  address: string
-  city: string
-}
 
 interface FormData {
   company_account_id: string
@@ -71,7 +63,7 @@ interface FormData {
   featured: boolean
   created_by: string
   contact_info: string
-  building_id: string
+  building_name: string
   viewing_fee: number
   house_number: string
   frequency: number
@@ -117,14 +109,13 @@ const AMENITIES = [
 const STEPS = [
   { id: 1, title: "Who's Uploading", description: "Your role", icon: User },
   { id: 2, title: "Property Type", description: "What type of property", icon: Home },
-  { id: 3, title: "Building", description: "Building selection", icon: Building2 },
-  { id: 4, title: "Basic Details", description: "Property specifications", icon: Settings },
-  { id: 5, title: "Location", description: "Address & location", icon: MapPin },
-  { id: 6, title: "Pricing", description: "Rent or sale pricing", icon: DollarSign },
-  { id: 7, title: "Availability", description: "When it's available", icon: CalendarIcon },
-  { id: 8, title: "Images", description: "Property photos", icon: Camera },
-  { id: 9, title: "Features", description: "Amenities & policies", icon: Settings },
-  { id: 10, title: "Review", description: "Final review", icon: CheckCircle },
+  { id: 3, title: "Basic Details", description: "Property specifications", icon: Settings },
+  { id: 4, title: "Location", description: "Address & location", icon: MapPin },
+  { id: 5, title: "Pricing", description: "Rent or sale pricing", icon: DollarSign },
+  { id: 6, title: "Availability", description: "When it's available", icon: CalendarIcon },
+  { id: 7, title: "Images", description: "Property photos", icon: Camera },
+  { id: 8, title: "Features", description: "Amenities & policies", icon: Settings },
+  { id: 9, title: "Review", description: "Final review", icon: CheckCircle },
 ]
 
 export default function NewVacantUnitPage() {
@@ -132,8 +123,6 @@ export default function NewVacantUnitPage() {
   const router = useRouter()
   const [currentStep, setCurrentStep] = useState(1)
   const [loading, setLoading] = useState(false)
-  const [buildings, setBuildings] = useState<Building[]>([])
-  const [loadingBuildings, setLoadingBuildings] = useState(true)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [uploadProgress, setUploadProgress] = useState<UploadProgress[]>([])
   const [calendarOpen, setCalendarOpen] = useState(false)
@@ -166,7 +155,7 @@ export default function NewVacantUnitPage() {
     featured: false,
     created_by: "",
     contact_info: "",
-    building_id: "",
+    building_name: "",
     viewing_fee: 0,
     house_number: "",
     frequency: 1,
@@ -175,59 +164,8 @@ export default function NewVacantUnitPage() {
     category: "for rent",
   })
 
-  // Load buildings on component mount
   useEffect(() => {
-    const loadBuildings = async () => {
-      if (!user?.company_account_id) return
-
-      try {
-        // First, let's check what columns exist in the buildings table
-        console.log("Loading buildings for company:", user.company_account_id)
-
-        // Try a simple query first to see what data structure we have
-        const { data: testData, error: testError } = await supabase.from("buildings").select("*").limit(1)
-
-        console.log("Test query result:", { testData, testError })
-
-        if (testError) {
-          console.error("Test query error:", testError)
-          // If buildings table doesn't exist, show appropriate message
-          setErrors({ buildings: "Buildings table not found. Please set up your database first." })
-          setLoadingBuildings(false)
-          return
-        }
-
-        // If test query works, try to get the actual data
-        const { data, error } = await supabase
-          .from("buildings")
-          .select("*")
-          .eq("company_account_id", user.company_account_id)
-          .order("name", { ascending: true })
-
-        if (error) {
-          console.error("Error loading buildings:", error)
-          setErrors({ buildings: `Error loading buildings: ${error.message}` })
-        } else {
-          console.log("Buildings loaded:", data)
-          // Map the data to ensure we have the right structure
-          const mappedBuildings = (data || []).map((building: any) => ({
-            id: building.id || building.building_id || building.uuid,
-            name: building.name || building.building_name || "Unnamed Building",
-            address: building.address || building.street_address || "",
-            city: building.city || building.location || "",
-          }))
-          setBuildings(mappedBuildings)
-        }
-      } catch (error) {
-        console.error("Exception loading buildings:", error)
-        setErrors({ buildings: `Failed to load buildings: ${error}` })
-      } finally {
-        setLoadingBuildings(false)
-      }
-    }
-
     if (user?.company_account_id) {
-      loadBuildings()
       setFormData((prev) => ({
         ...prev,
         company_account_id: user.company_account_id,
@@ -242,7 +180,6 @@ export default function NewVacantUnitPage() {
       [field]: value,
     }))
 
-    // Clear error when user starts typing
     if (errors[field]) {
       setErrors((prev) => ({
         ...prev,
@@ -274,11 +211,9 @@ export default function NewVacantUnitPage() {
       const uploadIndex = uploadProgress.length + i
 
       try {
-        // Create unique filename
         const fileExt = upload.file.name.split(".").pop()
         const fileName = `${user.company_account_id}/${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`
 
-        // Simulate progress updates
         const progressInterval = setInterval(() => {
           setUploadProgress((prev) => {
             const updated = [...prev]
@@ -289,14 +224,12 @@ export default function NewVacantUnitPage() {
           })
         }, 200)
 
-        // Upload to Supabase Storage
         const { data, error } = await supabase.storage.from("property-images").upload(fileName, upload.file)
 
         clearInterval(progressInterval)
 
         if (error) throw error
 
-        // Get public URL
         const {
           data: { publicUrl },
         } = supabase.storage.from("property-images").getPublicUrl(fileName)
@@ -311,7 +244,6 @@ export default function NewVacantUnitPage() {
           return updated
         })
 
-        // Add to form data
         setFormData((prevForm) => ({
           ...prevForm,
           images: [...prevForm.images, publicUrl],
@@ -345,36 +277,27 @@ export default function NewVacantUnitPage() {
     const newErrors: Record<string, string> = {}
 
     switch (currentStep) {
-      case 1: // Role
+      case 1:
         if (!formData.role) newErrors.role = "Please select your role"
         break
-
-      case 2: // Property Type
+      case 2:
         if (!formData.property_type) newErrors.property_type = "Property type is required"
         break
-
-      case 3: // Building (only for certain property types)
-        if (["apartment", "studio", "condo"].includes(formData.property_type) && !formData.building_id) {
-          newErrors.building_id = "Building selection is required for apartments, studios, and condos"
-        }
-        break
-
-      case 4: // Basic Details
+      case 3:
         if (!formData.title.trim()) newErrors.title = "Title is required"
         if (!formData.description.trim()) newErrors.description = "Description is required"
         if (formData.bedrooms < 0) newErrors.bedrooms = "Bedrooms must be 0 or greater"
         if (formData.bathrooms < 0) newErrors.bathrooms = "Bathrooms must be 0 or greater"
         if (formData.square_feet <= 0) newErrors.square_feet = "Square feet must be greater than 0"
+        if (!formData.building_name.trim()) newErrors.building_name = "Building name is required"
         break
-
-      case 5: // Location
+      case 4:
         if (!formData.address.trim()) newErrors.address = "Address is required"
         if (!formData.city.trim()) newErrors.city = "City is required"
         if (!formData.state.trim()) newErrors.state = "State is required"
         if (!formData.zip_code.trim()) newErrors.zip_code = "ZIP code is required"
         break
-
-      case 6: // Pricing
+      case 5:
         if (formData.category === "for sale") {
           if (!formData.selling_price || formData.selling_price <= 0) {
             newErrors.selling_price = "Selling price is required and must be greater than 0"
@@ -388,13 +311,11 @@ export default function NewVacantUnitPage() {
           }
         }
         break
-
-      case 7: // Availability
+      case 6:
         if (!formData.available_from) newErrors.available_from = "Available from date is required"
         if (formData.frequency < 1) newErrors.frequency = "Number of similar units must be at least 1"
         break
-
-      case 9: // Features & Contact
+      case 8:
         if (!formData.contact_info.trim()) newErrors.contact_info = "Contact info is required"
         break
     }
@@ -405,22 +326,12 @@ export default function NewVacantUnitPage() {
 
   const handleNext = () => {
     if (validateCurrentStep()) {
-      // Skip building step for standalone properties
-      if (currentStep === 2 && !["apartment", "studio", "condo"].includes(formData.property_type)) {
-        setCurrentStep(4) // Skip to basic details
-      } else {
-        setCurrentStep((prev) => Math.min(prev + 1, STEPS.length))
-      }
+      setCurrentStep((prev) => Math.min(prev + 1, STEPS.length))
     }
   }
 
   const handlePrevious = () => {
-    // Skip building step for standalone properties when going back
-    if (currentStep === 4 && !["apartment", "studio", "condo"].includes(formData.property_type)) {
-      setCurrentStep(2) // Go back to property type
-    } else {
-      setCurrentStep((prev) => Math.max(prev - 1, 1))
-    }
+    setCurrentStep((prev) => Math.max(prev - 1, 1))
   }
 
   const handleSubmit = async () => {
@@ -429,7 +340,6 @@ export default function NewVacantUnitPage() {
     setLoading(true)
 
     try {
-      // Sanitize the form data to handle null values for numeric fields
       const sanitizedData = {
         ...formData,
         rent_amount: formData.rent_amount || 0,
@@ -463,7 +373,6 @@ export default function NewVacantUnitPage() {
   }
 
   const progress = (currentStep / STEPS.length) * 100
-  const showBuildingStep = ["apartment", "studio", "condo"].includes(formData.property_type)
 
   if (!user) {
     return (
@@ -479,7 +388,7 @@ export default function NewVacantUnitPage() {
 
   const renderStepContent = () => {
     switch (currentStep) {
-      case 1: // Who's Uploading
+      case 1:
         return (
           <div className="space-y-6 text-center">
             <div>
@@ -511,7 +420,7 @@ export default function NewVacantUnitPage() {
           </div>
         )
 
-      case 2: // Property Type
+      case 2:
         return (
           <div className="space-y-6 text-center">
             <div>
@@ -538,60 +447,7 @@ export default function NewVacantUnitPage() {
           </div>
         )
 
-      case 3: // Building Selection
-        if (!showBuildingStep) {
-          return null
-        }
-        return (
-          <div className="space-y-6 text-center">
-            <div>
-              <Building2 className="mx-auto h-16 w-16 text-primary mb-4" />
-              <h2 className="text-2xl font-bold mb-2">Which building is this unit in?</h2>
-              <p className="text-muted-foreground">
-                Since this is a {formData.property_type}, it needs to be assigned to a building
-              </p>
-            </div>
-
-            <div className="max-w-md mx-auto">
-              {loadingBuildings ? (
-                <div className="h-10 bg-gray-100 rounded animate-pulse"></div>
-              ) : (
-                <Select value={formData.building_id} onValueChange={(value) => handleInputChange("building_id", value)}>
-                  <SelectTrigger className={errors.building_id ? "border-red-500" : ""}>
-                    <SelectValue placeholder="Select a building" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {buildings.map((building) => (
-                      <SelectItem key={building.id} value={building.id}>
-                        {building.name} - {building.address}, {building.city}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-              {errors.building_id && <p className="text-sm text-red-500 mt-1">{errors.building_id}</p>}
-              {errors.buildings && (
-                <Alert className="mt-3" variant="destructive">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>{errors.buildings}</AlertDescription>
-                </Alert>
-              )}
-              {!loadingBuildings && buildings.length === 0 && !errors.buildings && (
-                <Alert className="mt-3">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>
-                    No buildings found.{" "}
-                    <Button variant="link" className="p-0 h-auto" asChild>
-                      <a href="/new-building">Add a building first</a>
-                    </Button>
-                  </AlertDescription>
-                </Alert>
-              )}
-            </div>
-          </div>
-        )
-
-      case 4: // Basic Details
+      case 3:
         return (
           <div className="space-y-6">
             <div className="text-center">
@@ -613,6 +469,20 @@ export default function NewVacantUnitPage() {
                   className={errors.title ? "border-red-500" : ""}
                 />
                 {errors.title && <p className="text-sm text-red-500 mt-1">{errors.title}</p>}
+              </div>
+
+              <div>
+                <Label htmlFor="building_name">
+                  Building Name <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  id="building_name"
+                  value={formData.building_name}
+                  onChange={(e) => handleInputChange("building_name", e.target.value)}
+                  placeholder="e.g., Westlands Heights, Karen Gardens"
+                  className={errors.building_name ? "border-red-500" : ""}
+                />
+                {errors.building_name && <p className="text-sm text-red-500 mt-1">{errors.building_name}</p>}
               </div>
 
               <div>
@@ -681,7 +551,7 @@ export default function NewVacantUnitPage() {
           </div>
         )
 
-      case 5: // Location
+      case 4:
         return (
           <div className="space-y-6">
             <div className="text-center">
@@ -764,7 +634,7 @@ export default function NewVacantUnitPage() {
           </div>
         )
 
-      case 6: // Pricing
+      case 5:
         return (
           <div className="space-y-6">
             <div className="text-center">
@@ -774,7 +644,6 @@ export default function NewVacantUnitPage() {
             </div>
 
             <div className="max-w-2xl mx-auto space-y-6">
-              {/* Toggle */}
               <div className="flex items-center justify-center space-x-4 p-4 bg-gray-50 rounded-lg">
                 <div className="flex items-center space-x-3">
                   <span className={formData.category === "for rent" ? "font-medium" : "text-muted-foreground"}>
@@ -802,9 +671,7 @@ export default function NewVacantUnitPage() {
                 </Badge>
               </div>
 
-              {/* Conditional Pricing Fields */}
               {formData.category === "for sale" ? (
-                // For Sale Fields
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="selling_price">
@@ -835,7 +702,6 @@ export default function NewVacantUnitPage() {
                   </div>
                 </div>
               ) : (
-                // For Rent Fields
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
                     <Label htmlFor="rent_amount">
@@ -884,7 +750,7 @@ export default function NewVacantUnitPage() {
           </div>
         )
 
-      case 7: // Availability
+      case 6:
         return (
           <div className="space-y-6">
             <div className="text-center">
@@ -953,7 +819,7 @@ export default function NewVacantUnitPage() {
           </div>
         )
 
-      case 8: // Images
+      case 7:
         return (
           <div className="space-y-6">
             <div className="text-center">
@@ -963,7 +829,6 @@ export default function NewVacantUnitPage() {
             </div>
 
             <div className="max-w-2xl mx-auto space-y-6">
-              {/* Upload Area */}
               <div>
                 <div
                   className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-gray-400 transition-colors cursor-pointer"
@@ -993,7 +858,6 @@ export default function NewVacantUnitPage() {
                 </div>
               </div>
 
-              {/* Upload Progress */}
               {uploadProgress.length > 0 && (
                 <div className="space-y-3">
                   <h3 className="font-medium">Uploading Images</h3>
@@ -1022,7 +886,6 @@ export default function NewVacantUnitPage() {
                 </div>
               )}
 
-              {/* Uploaded Images */}
               {formData.images.length > 0 && (
                 <div className="space-y-3">
                   <h3 className="font-medium">Uploaded Images ({formData.images.length})</h3>
@@ -1052,7 +915,7 @@ export default function NewVacantUnitPage() {
           </div>
         )
 
-      case 9: // Features
+      case 8:
         return (
           <div className="space-y-6">
             <div className="text-center">
@@ -1154,7 +1017,7 @@ export default function NewVacantUnitPage() {
           </div>
         )
 
-      case 10: // Review
+      case 9:
         return (
           <div className="space-y-6">
             <div className="text-center">
@@ -1176,6 +1039,9 @@ export default function NewVacantUnitPage() {
                     </p>
                     <p>
                       <strong>Type:</strong> {formData.property_type}
+                    </p>
+                    <p>
+                      <strong>Building:</strong> {formData.building_name}
                     </p>
                     <p>
                       <strong>Size:</strong> {formData.bedrooms} bed, {formData.bathrooms} bath, {formData.square_feet}{" "}
@@ -1265,13 +1131,11 @@ export default function NewVacantUnitPage() {
   return (
     <div className="container mx-auto py-8 px-4">
       <div className="max-w-4xl mx-auto">
-        {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold">Add New Vacant Unit</h1>
           <p className="text-muted-foreground mt-2">Follow the steps to create your property listing</p>
         </div>
 
-        {/* Progress Bar */}
         <div className="mb-8">
           <div className="flex items-center justify-between mb-4">
             <span className="text-sm font-medium">
@@ -1308,12 +1172,10 @@ export default function NewVacantUnitPage() {
           </div>
         </div>
 
-        {/* Step Content */}
         <Card className="mb-8">
           <CardContent className="pt-6">{renderStepContent()}</CardContent>
         </Card>
 
-        {/* Navigation Buttons */}
         <div className="flex justify-between">
           <Button variant="outline" onClick={handlePrevious} disabled={currentStep === 1}>
             <ArrowLeft className="mr-2 h-4 w-4" />
