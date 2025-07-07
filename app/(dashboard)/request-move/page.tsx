@@ -26,10 +26,8 @@ import {
   ArrowLeft,
   ArrowRight,
   CheckCircle,
-  Building,
 } from "lucide-react"
 import { useAuth } from "@/components/auth-provider"
-import { supabase } from "@/lib/supabase"
 import { InteractiveMap } from "@/components/interactive-map"
 
 // Kenya-specific location suggestions with more accurate coordinates
@@ -59,15 +57,12 @@ const KENYA_LOCATIONS = [
 export default function RequestMovePage(): ReactElement {
   const { user, loading } = useAuth()
   const [currentStep, setCurrentStep] = useState(1)
-  const [buildings, setBuildings] = useState<any[]>([])
-  const [isLoading, setIsLoading] = useState(true)
 
   // Form state
   const [clientName, setClientName] = useState("")
   const [clientPhone, setClientPhone] = useState("")
   const [clientEmail, setClientEmail] = useState("")
   const [serviceType, setServiceType] = useState("")
-  const [pickupLocation, setPickupLocation] = useState("")
   const [pickupAddress, setPickupAddress] = useState("")
   const [pickupCoords, setPickupCoords] = useState<[number, number] | null>(null)
   const [pickupSuggestions, setPickupSuggestions] = useState<typeof KENYA_LOCATIONS>([])
@@ -224,7 +219,7 @@ export default function RequestMovePage(): ReactElement {
     [],
   )
 
-  // Steps configuration
+  // Steps configuration - removed building step
   const steps = [
     {
       id: 1,
@@ -245,7 +240,7 @@ export default function RequestMovePage(): ReactElement {
       title: "Pickup",
       question: "Where are you moving from?",
       icon: <MapPin className="h-4 w-4 md:h-5 md:w-5" />,
-      description: "Select the building and exact pickup address",
+      description: "Enter the pickup address or building name",
     },
     {
       id: 4,
@@ -419,54 +414,6 @@ export default function RequestMovePage(): ReactElement {
     }
   }, [pickupCoords, dropoffCoords])
 
-  // Fetch buildings using global auth state
-  useEffect(() => {
-    const fetchBuildings = async () => {
-      if (loading) return
-
-      if (!user?.company_account_id) {
-        setIsLoading(false)
-        setBuildings([])
-        return
-      }
-
-      try {
-        setIsLoading(true)
-        const { data, error } = await supabase
-          .from("buildings")
-          .select("*")
-          .eq("company_account_id", user.company_account_id)
-
-        if (error) {
-          console.error("Error fetching buildings:", error)
-          setBuildings([])
-          return
-        }
-
-        if (data && data.length > 0) {
-          const mappedBuildings = data.map((building) => ({
-            building_id: building.building_id || building.id,
-            name: building.name || building.building_name,
-            address: building.address || building.location,
-            latitude: building.latitude ? Number.parseFloat(building.latitude) : null,
-            longitude: building.longitude ? Number.parseFloat(building.longitude) : null,
-          }))
-
-          setBuildings(mappedBuildings)
-        } else {
-          setBuildings([])
-        }
-      } catch (err) {
-        console.error("Failed to fetch buildings:", err)
-        setBuildings([])
-      } finally {
-        setIsLoading(false)
-      }
-    }
-
-    fetchBuildings()
-  }, [user, loading])
-
   // Calculate transport cost using tiered pricing
   const calculateTransportCost = (vehicleType: string, distance: number, numLoaders: number) => {
     const pricing = vehiclePricing[vehicleType as keyof typeof vehiclePricing]
@@ -567,7 +514,6 @@ export default function RequestMovePage(): ReactElement {
 ${serviceType === "transport" ? `• Number of Loaders: ${numLoaders}` : ""}
 
 📍 *LOCATIONS:*
-• Pickup Building: ${pickupLocation}
 • Pickup Address: ${pickupAddress}
 • Drop-off: ${dropoffLocation}
 
@@ -607,7 +553,7 @@ ${additionalNotes || "None"}
       case 2:
         return serviceType
       case 3:
-        return pickupLocation && pickupAddress
+        return pickupAddress
       case 4:
         return dropoffLocation
       case 5:
@@ -775,56 +721,18 @@ ${additionalNotes || "None"}
               </div>
             )}
 
-            {/* Step 3: Pickup Location */}
+            {/* Step 3: Pickup Location - Simplified without building requirement */}
             {currentStep === 3 && (
               <div className="space-y-4 md:space-y-6 max-w-4xl mx-auto">
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
                   <div className="space-y-4">
                     <div className="space-y-2">
-                      <Label htmlFor="pickup">Pickup Building *</Label>
-                      <div className="relative">
-                        <Building className="absolute left-2.5 top-3 h-4 w-4 text-muted-foreground z-10" />
-                        <Select
-                          value={pickupLocation}
-                          onValueChange={setPickupLocation}
-                          disabled={!user || !user.company_account_id || buildings.length === 0}
-                        >
-                          <SelectTrigger className="pl-8 mobile-input">
-                            <SelectValue
-                              placeholder={
-                                !user
-                                  ? "Please log in"
-                                  : !user.company_account_id
-                                    ? "No company found"
-                                    : isLoading
-                                      ? "Loading buildings..."
-                                      : buildings.length > 0
-                                        ? "Select a building"
-                                        : "No buildings available"
-                              }
-                            />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {buildings.map((building) => (
-                              <SelectItem key={building.building_id} value={building.name || building.address || ""}>
-                                <div>
-                                  <div className="font-medium">{building.name}</div>
-                                  <div className="text-xs text-muted-foreground">{building.address}</div>
-                                </div>
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="pickupAddress">Exact Pickup Address *</Label>
+                      <Label htmlFor="pickupAddress">Pickup Address or Building Name *</Label>
                       <div className="relative">
                         <MapPin className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                         <Input
                           id="pickupAddress"
-                          placeholder="Enter exact pickup address (e.g., Karen Shopping Centre, Nairobi)"
+                          placeholder="Enter pickup address or building name (e.g., Karen Shopping Centre, Nairobi)"
                           className="pl-8 mobile-input"
                           value={pickupAddress}
                           onChange={(e) => handlePickupAddressChange(e.target.value)}
@@ -1137,7 +1045,7 @@ ${additionalNotes || "None"}
                           )}
                           <div className="pt-3 border-t">
                             <div className="text-sm">
-                              <span className="font-medium">Company Commission (4%):</span> KSh{" "}
+                              <span className="font-medium"> Commission (4%):</span> KSh{" "}
                               {companyCommission.toLocaleString()}
                             </div>
                           </div>
@@ -1159,7 +1067,6 @@ ${additionalNotes || "None"}
                         <div className="min-w-0">
                           <span className="font-medium">Pickup:</span>
                           <br />
-                          {pickupLocation && <span className="text-muted-foreground">{pickupLocation}, </span>}
                           <span className="break-words">{pickupAddress}</span>
                         </div>
                       </div>
@@ -1201,7 +1108,7 @@ ${additionalNotes || "None"}
                     onClick={sendToWhatsApp}
                     size="lg"
                     className="w-full md:w-auto px-6 md:px-8 mobile-button"
-                    disabled={!user || !user.company_account_id}
+                    disabled={!user}
                   >
                     Send Request to WhatsApp
                   </Button>
@@ -1232,11 +1139,7 @@ ${additionalNotes || "None"}
                 <ArrowRight className="h-4 w-4" />
               </Button>
             ) : (
-              <Button
-                onClick={sendToWhatsApp}
-                disabled={!user || !user.company_account_id}
-                className="flex items-center gap-2 mobile-button"
-              >
+              <Button onClick={sendToWhatsApp} disabled={!user} className="flex items-center gap-2 mobile-button">
                 <span className="hidden sm:inline">Send Request</span>
                 <CheckCircle className="h-4 w-4" />
               </Button>

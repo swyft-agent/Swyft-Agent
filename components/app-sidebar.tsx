@@ -19,6 +19,7 @@ import {
   FileText,
   Upload,
   TrendingUp,
+  Truck,
 } from "lucide-react"
 
 import {
@@ -133,6 +134,17 @@ const getMenuItems = (userRole: string) => {
     ],
   }
 
+  const servicesItems = {
+    title: "Services",
+    items: [
+      {
+        title: "Request Move",
+        url: "/request-move",
+        icon: Truck,
+      },
+    ],
+  }
+
   const settingsItems = {
     title: "Settings",
     items: [
@@ -147,7 +159,16 @@ const getMenuItems = (userRole: string) => {
   // Role-specific menu configurations
   switch (userRole) {
     case "agent":
-      return [...baseItems, propertyItems, adsItems, communicationItems, walletItems, basicAnalytics, settingsItems]
+      return [
+        ...baseItems,
+        propertyItems,
+        adsItems,
+        communicationItems,
+        walletItems,
+        servicesItems,
+        basicAnalytics,
+        settingsItems,
+      ]
 
     case "landlord":
       return [
@@ -195,16 +216,7 @@ const getMenuItems = (userRole: string) => {
         adsItems,
         communicationItems,
         walletItems,
-        {
-          title: "Services",
-          items: [
-            {
-              title: "Request Move",
-              url: "/request-move",
-              icon: Home,
-            },
-          ],
-        },
+        servicesItems,
         basicAnalytics,
         settingsItems,
       ]
@@ -350,21 +362,12 @@ const getMenuItems = (userRole: string) => {
             },
           ],
         },
-        {
-          title: "Services",
-          items: [
-            {
-              title: "Request Move",
-              url: "/request-move",
-              icon: Home,
-            },
-          ],
-        },
+        servicesItems,
         settingsItems,
       ]
 
     default:
-      return [...baseItems, propertyItems, communicationItems, walletItems, settingsItems]
+      return [...baseItems, propertyItems, communicationItems, walletItems, servicesItems, settingsItems]
   }
 }
 
