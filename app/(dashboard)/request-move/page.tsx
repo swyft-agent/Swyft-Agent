@@ -541,7 +541,7 @@ ${additionalNotes || "None"}
 *Generated via Swyft Property Management System*`
 
     const encodedMessage = encodeURIComponent(message)
-    const whatsappUrl = `https://wa.me/254796205375?text=${encodedMessage}`
+    const whatsappUrl = `https://wa.me/254796652112?text=${encodedMessage}`
     window.open(whatsappUrl, "_blank")
   }
 
