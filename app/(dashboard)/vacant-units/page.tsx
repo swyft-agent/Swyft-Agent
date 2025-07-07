@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Plus, Search, MapPin, Bed, Bath, Square, Eye, Edit, Trash2 } from "lucide-react"
+import { Plus, Search, MapPin, Bed, Bath, Square, Eye, Trash2 } from "lucide-react"
 import Link from "next/link"
 import { useAuth } from "@/components/auth-provider"
 import { fetchVacantUnits } from "@/lib/supabase-data"
@@ -41,6 +41,11 @@ export default function VacantUnitsPage() {
   const [filterStatus, setFilterStatus] = useState("all")
   const [filterType, setFilterType] = useState("all")
 
+  const [selectedUnit, setSelectedUnit] = useState<VacantUnit | null>(null)
+  const [showViewModal, setShowViewModal] = useState(false)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [unitToDelete, setUnitToDelete] = useState<VacantUnit | null>(null)
+
   useEffect(() => {
     if (user?.id) {
       loadVacantUnits()
@@ -58,6 +63,37 @@ export default function VacantUnitsPage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleDeleteClick = (unit: VacantUnit) => {
+    setUnitToDelete(unit)
+    setShowDeleteModal(true)
+  }
+
+  const handleConfirmDelete = async () => {
+    if (!unitToDelete) return
+
+    try {
+      const response = await fetch(`/api/vacant-units/${unitToDelete.id}`, {
+        method: "DELETE",
+      })
+
+      if (response.ok) {
+        setUnits(units.filter((unit) => unit.id !== unitToDelete.id))
+        setShowDeleteModal(false)
+        setUnitToDelete(null)
+      } else {
+        alert("Failed to delete unit. Please try again.")
+      }
+    } catch (error) {
+      console.error("Error deleting unit:", error)
+      alert("Failed to delete unit. Please try again.")
+    }
+  }
+
+  const handleViewUnit = (unit: VacantUnit) => {
+    setSelectedUnit(unit)
+    setShowViewModal(true)
   }
 
   const filteredUnits = units.filter((unit) => {
@@ -255,13 +291,15 @@ export default function VacantUnitsPage() {
                     </div>
 
                     <div className="flex items-center gap-2">
-                      <Button variant="outline" size="sm">
+                      <Button variant="outline" size="sm" onClick={() => handleViewUnit(unit)}>
                         <Eye className="h-4 w-4" />
                       </Button>
-                      <Button variant="outline" size="sm">
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button variant="outline" size="sm">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleDeleteClick(unit)}
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                      >
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
@@ -293,6 +331,170 @@ export default function VacantUnitsPage() {
               </CardContent>
             </Card>
           ))}
+        </div>
+      )}
+
+      {/* View Unit Modal */}
+      {showViewModal && selectedUnit && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex justify-between items-start mb-4">
+                <h2 className="text-2xl font-bold">{selectedUnit.title}</h2>
+                <Button variant="outline" size="sm" onClick={() => setShowViewModal(false)}>
+                  ✕
+                </Button>
+              </div>
+
+              {/* Image Gallery */}
+              {selectedUnit.images && selectedUnit.images.length > 0 && (
+                <div className="mb-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {selectedUnit.images.map((image, index) => (
+                      <img
+                        key={index}
+                        src={image || "/placeholder.svg"}
+                        alt={`${selectedUnit.title} - Image ${index + 1}`}
+                        className="w-full h-48 object-cover rounded-lg"
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <div>
+                    <h3 className="font-semibold text-lg mb-2">Property Details</h3>
+                    <div className="space-y-2">
+                      <div className="flex items-center text-gray-600">
+                        <MapPin className="h-4 w-4 mr-2" />
+                        <span>
+                          {selectedUnit.address}, {selectedUnit.city}, {selectedUnit.state}
+                        </span>
+                      </div>
+                      {selectedUnit.building_name && (
+                        <p>
+                          <strong>Building:</strong> {selectedUnit.building_name}
+                        </p>
+                      )}
+                      <p>
+                        <strong>Property Type:</strong> {selectedUnit.property_type}
+                      </p>
+                      <p>
+                        <strong>Status:</strong>
+                        <Badge
+                          className={`ml-2 ${
+                            selectedUnit.status === "available"
+                              ? "bg-green-500"
+                              : selectedUnit.status === "pending"
+                                ? "bg-yellow-500"
+                                : "bg-red-500"
+                          }`}
+                        >
+                          {selectedUnit.status}
+                        </Badge>
+                      </p>
+                      {selectedUnit.category && (
+                        <p>
+                          <strong>Category:</strong> {selectedUnit.category}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <h3 className="font-semibold text-lg mb-2">Specifications</h3>
+                    <div className="grid grid-cols-3 gap-4">
+                      <div className="text-center">
+                        <Bed className="h-6 w-6 mx-auto mb-1" />
+                        <p className="text-sm">{selectedUnit.bedrooms} Beds</p>
+                      </div>
+                      <div className="text-center">
+                        <Bath className="h-6 w-6 mx-auto mb-1" />
+                        <p className="text-sm">{selectedUnit.bathrooms} Baths</p>
+                      </div>
+                      <div className="text-center">
+                        <Square className="h-6 w-6 mx-auto mb-1" />
+                        <p className="text-sm">{selectedUnit.square_feet} sq ft</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <h3 className="font-semibold text-lg mb-2">Pricing</h3>
+                    {selectedUnit.category === "for sale" ? (
+                      <p className="text-2xl font-bold text-green-600">{formatCurrency(selectedUnit.selling_price)}</p>
+                    ) : (
+                      <p className="text-2xl font-bold text-green-600">
+                        {formatCurrency(selectedUnit.rent_amount)}/month
+                      </p>
+                    )}
+                  </div>
+
+                  {selectedUnit.amenities && selectedUnit.amenities.length > 0 && (
+                    <div>
+                      <h3 className="font-semibold text-lg mb-2">Amenities</h3>
+                      <div className="flex flex-wrap gap-2">
+                        {selectedUnit.amenities.map((amenity) => (
+                          <Badge key={amenity} variant="secondary">
+                            {amenity.replace(/_/g, " ")}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedUnit.available_from && (
+                    <div>
+                      <h3 className="font-semibold text-lg mb-2">Availability</h3>
+                      <p>Available from: {new Date(selectedUnit.available_from).toLocaleDateString()}</p>
+                    </div>
+                  )}
+
+                  {selectedUnit.description && (
+                    <div>
+                      <h3 className="font-semibold text-lg mb-2">Description</h3>
+                      <p className="text-gray-700">{selectedUnit.description}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && unitToDelete && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-md w-full p-6">
+            <div className="text-center">
+              <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 mb-4">
+                <Trash2 className="h-6 w-6 text-red-600" />
+              </div>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">Delete Unit</h3>
+              <p className="text-sm text-gray-500 mb-6">
+                Are you sure you want to delete "{unitToDelete.title}"? This action cannot be undone.
+              </p>
+              <div className="flex gap-3 justify-center">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowDeleteModal(false)
+                    setUnitToDelete(null)
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button variant="destructive" onClick={handleConfirmDelete} className="bg-red-600 hover:bg-red-700">
+                  Delete Unit
+                </Button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>
