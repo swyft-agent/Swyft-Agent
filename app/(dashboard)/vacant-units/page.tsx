@@ -83,11 +83,13 @@ export default function VacantUnitsPage() {
         setShowDeleteModal(false)
         setUnitToDelete(null)
       } else {
-        alert("Failed to delete unit. Please try again.")
+        const errorData = await response.text()
+        console.error("Delete failed:", response.status, errorData)
+        alert(`Failed to delete unit: ${response.status} - ${errorData}`)
       }
     } catch (error) {
       console.error("Error deleting unit:", error)
-      alert("Failed to delete unit. Please try again.")
+      alert(`Network error: ${error.message}`)
     }
   }
 

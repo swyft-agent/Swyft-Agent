@@ -73,13 +73,63 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   }
 }
 
+export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+  try {
+    const unitId = params.id
+
+    if (!unitId) {
+      return NextResponse.json({ error: "Unit ID is required" }, { status: 400 })
+    }
+
+    // First, check if the unit exists
+    const { data: existingUnit, error: fetchError } = await supabase
+      .from("vacant_units")
+      .select("id, title")
+      .eq("id", unitId)
+      .single()
+
+    if (fetchError || !existingUnit) {
+      console.error("Unit not found:", fetchError)
+      return NextResponse.json({ error: "Unit not found" }, { status: 404 })
+    }
+
+    // Delete the unit
+    const { error: deleteError } = await supabase.from("vacant_units").delete().eq("id", unitId)
+
+    if (deleteError) {
+      console.error("Error deleting unit:", deleteError)
+      return NextResponse.json(
+        {
+          error: "Failed to delete unit",
+          details: deleteError.message,
+        },
+        { status: 500 },
+      )
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: `Unit "${existingUnit.title}" deleted successfully`,
+    })
+  } catch (error) {
+    console.error("API Error:", error)
+    return NextResponse.json(
+      {
+        error: "Internal server error",
+        details: error.message,
+      },
+      { status: 500 },
+    )
+  }
+}
+
 // Enable CORS for external access
 export async function OPTIONS() {
   return new NextResponse(null, {
     status: 200,
     headers: {
       "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "GET, OPTIONS",
+      "Access-Control-Allow-Methods": "GET, DELETE, OPTIONS",
       "Access-Control-Allow-Headers": "Content-Type",
     },
   })
